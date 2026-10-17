@@ -1,0 +1,25 @@
+# Python virtual environments
+.venv/
+.venv311/
+.venv-piper/
+venv/
+env/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# macOS
+.DS_Store
+
+# Local downloads and generated files
+*.log
+models/

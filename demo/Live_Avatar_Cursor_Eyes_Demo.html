@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TBA Avatar Studio · Cursor-following Eyes</title>
+<style>
+  :root { color-scheme: light; --ink:#17243b; --blue:#4169e1; --panel:#ffffffd9; }
+  * { box-sizing:border-box }
+  body { margin:0; min-height:100vh; font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif; color:var(--ink);
+    background:linear-gradient(135deg,#eaf3ff,#f4f0ff 55%,#e7fbf2); display:flex; justify-content:center; padding:24px; }
+  .app { width:min(1040px,100%); display:grid; grid-template-columns:minmax(0,1.35fr) minmax(270px,.8fr); gap:18px; align-items:stretch; }
+  .card { background:var(--panel); border:1px solid #ffffff; border-radius:24px; box-shadow:0 16px 50px #243b6520; overflow:hidden; }
+  .preview { min-height:620px; display:flex; flex-direction:column; }
+  .topbar { padding:20px 22px 10px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .studio-brand { width:116px; display:block; background:#fff; border-radius:9px; padding:4px 6px; margin-bottom:7px; }
+  .studio-brand img { display:block; width:100%; height:auto; }
+  h1 { font-size:clamp(20px,3vw,28px); margin:0; letter-spacing:-.04em; }
+  .sub { color:#65738b; font-size:13px; margin-top:5px; }
+  .status { border-radius:999px; background:#eaf8ef; color:#237747; padding:7px 10px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .scene { margin:12px 16px 16px; flex:1; min-height:475px; border-radius:20px; position:relative; overflow:hidden; background:linear-gradient(#45a9f5 0%,#9cdbff 66%,#a8df7d 66.2%,#76c45b 100%); }
+  .cloud { position:absolute; width:130px; height:40px; border-radius:50px; background:#ffffffb8; top:58px; left:5%; filter:blur(1px); }
+  .cloud:before,.cloud:after { content:""; position:absolute; background:inherit; border-radius:50%; }
+  .cloud:before { width:54px;height:54px;left:22px;top:-24px }.cloud:after{width:68px;height:68px;left:53px;top:-32px}
+  .building { position:absolute; left:-5%; bottom:70px; width:43%; height:180px; background:#f4dfb4; border-top:12px solid #fff0ce; box-shadow:inset 0 -12px #d7c6aa; }
+  .building:before { content:""; position:absolute; inset:42px 12px 18px; background:repeating-linear-gradient(90deg,#4daceb 0 29px,#e8ddc8 29px 38px); }
+  .tree { position:absolute; right:4%; bottom:57px; width:90px; height:145px; }
+  .tree:before { content:""; position:absolute; left:39px; bottom:0; width:13px; height:75px; background:#826143; }
+  .tree:after { content:""; position:absolute; left:0; top:0; width:90px; height:90px; border-radius:50%; background:#48b94e; box-shadow:-20px 25px 0 -4px #58c84f,20px 25px 0 -6px #38a745,0 -10px 0 -7px #79d65d; }
+  .path { position:absolute; bottom:0; left:0; right:0; height:42px; background:#e8a18a; border-top:6px solid #f6c5a5; }
+  .avatar { position:absolute; width:min(94%,530px); left:50%; bottom:-5px; transform:translateX(-50%); filter:drop-shadow(0 12px 12px #20415c2a); transform-origin:50% 100%; }
+  .avatar svg { display:block; width:100%; height:auto; overflow:visible; }
+  #head { transform-origin:180px 260px; animation:idleHead 5s ease-in-out infinite; }
+  #mouth { transform-origin:180px 229px; }
+  .speaking #mouth { animation:demoTalk .22s ease-in-out infinite alternate; }
+  .blink { transform-origin:center; }
+  .gaze-note { position:absolute;top:14px;right:14px;border:1px solid #ffffffa6;border-radius:999px;padding:8px 12px;background:#112e599b;color:#fff;font-size:12px;font-weight:700;z-index:3;pointer-events:none; }
+  .footer-note { position:absolute; left:14px; bottom:12px; padding:7px 10px; border-radius:10px; background:#ffffffc9; font-size:11px; color:#52627a; backdrop-filter:blur(8px); }
+  @keyframes idleHead { 0%,100%{transform:rotate(0deg) translateY(0)} 30%{transform:rotate(1deg) translateY(-1px)} 65%{transform:rotate(-1deg) translateY(1px)} }
+  @keyframes demoTalk { from{transform:scaleY(.7)} to{transform:scaleY(1.28)} }
+  .controls { padding:22px; display:flex; flex-direction:column; gap:18px; }
+  .controls h2 { margin:0; font-size:18px; }
+  .desc { color:#6b7890; font-size:13px; line-height:1.5; margin-top:-10px; }
+  .button-row { display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  button { border:0; border-radius:12px; padding:12px 14px; font:inherit; font-size:13px; font-weight:750; cursor:pointer; transition:transform .15s,filter .15s; }
+  button:hover { filter:brightness(.97); transform:translateY(-1px) } button:active{transform:translateY(0)}
+  .primary { background:var(--blue); color:white; box-shadow:0 5px 12px #4169e133; }
+  .secondary { background:#edf2ff; color:#2d4ca8; }
+  .stop { background:#fff0f0; color:#a32c39; }
+  .full { width:100%; }
+  .setting { display:grid; gap:8px; }
+  .setting label { font-size:13px; font-weight:700; display:flex; justify-content:space-between; }
+  input[type=range] { width:100%; accent-color:var(--blue); }
+  select { width:100%; border:1px solid #dce4f2; border-radius:10px; padding:10px; background:white; color:var(--ink); font:inherit; }
+  .meter { height:8px; background:#e7ecf7; border-radius:99px; overflow:hidden; }
+  .meter-fill { width:0%; height:100%; background:linear-gradient(90deg,#5f8cff,#46d5a2); transition:width .07s; }
+  .hint { border-radius:13px; padding:12px; background:#f5f7fc; font-size:12px; color:#617089; line-height:1.5; }
+  .hint strong { color:#34445f; }
+  .status-line { min-height:18px; font-size:12px; color:#5c6a82; line-height:1.4; }
+  @media(max-width:760px) { body{padding:12px}.app{grid-template-columns:1fr}.preview{min-height:560px}.scene{min-height:440px}.controls{padding:18px} }
+  @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="card preview">
+    <div class="topbar">
+      <div><span class="studio-brand"><img src="../static/assets/tba-logo.webp" alt="TBA" /></span><h1>TBA Avatar Studio</h1><div class="sub">Your stylized campus voice-chat avatar</div></div>
+      <span class="status" id="badge">● Ready</span>
+    </div>
+    <div class="scene" id="scene">
+      <div class="cloud"></div><div class="building"></div><div class="tree"></div><div class="path"></div>
+      <div class="gaze-note">👀 Eyes follow your cursor</div>
+      <div class="avatar" id="avatar">
+        <svg viewBox="0 0 360 470" role="img" aria-label="Stylized cartoon man with short dark hair, moustache and blue checked shirt">
+          <defs>
+            <linearGradient id="skin" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffd08a"/><stop offset=".55" stop-color="#f4a64f"/><stop offset="1" stop-color="#d9813d"/></linearGradient>
+            <linearGradient id="shirt" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f9f8f0"/><stop offset="1" stop-color="#cbd6e7"/></linearGradient>
+            <linearGradient id="hair" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#4a302d"/><stop offset="1" stop-color="#211e27"/></linearGradient>
+            <clipPath id="shirtClip"><path d="M40 470 Q44 390 93 371 L128 351 L232 351 L267 371 Q316 390 320 470Z"/></clipPath>
+          </defs>
+          <!-- neck and shoulders -->
+          <path d="M145 306 L145 370 Q180 399 215 370 L215 306Z" fill="url(#skin)"/>
+          <path d="M40 470 Q44 390 93 371 L128 351 L232 351 L267 371 Q316 390 320 470Z" fill="url(#shirt)" stroke="#8494b1" stroke-width="2"/>
+          <g clip-path="url(#shirtClip)" opacity=".95">
+            <path d="M78 350V480 M111 350V480 M145 350V480 M179 350V480 M213 350V480 M247 350V480 M281 350V480" stroke="#4a6595" stroke-width="13"/>
+            <path d="M25 378H335 M25 414H335 M25 450H335" stroke="#4a6595" stroke-width="13"/>
+            <path d="M78 350V480 M111 350V480 M145 350V480 M179 350V480 M213 350V480 M247 350V480 M281 350V480" stroke="#fff" stroke-width="3" opacity=".8"/>
+            <path d="M25 378H335 M25 414H335 M25 450H335" stroke="#fff" stroke-width="3" opacity=".8"/>
+          </g>
+          <path d="M130 351 L158 383 L180 410 L202 383 L230 351 L211 340 L149 340Z" fill="#f7f5ed" stroke="#b8c3d3" stroke-width="2"/>
+          <path d="M145 337 L180 374 L215 337 L205 321 L155 321Z" fill="#273653"/>
+          <path d="M180 374 L167 398 L180 410 L193 398Z" fill="#d9dfeb"/>
+          <circle cx="180" cy="419" r="6" fill="#293b60"/><circle cx="180" cy="419" r="2" fill="#91a6c9"/>
+          <!-- ears -->
+          <ellipse cx="91" cy="211" rx="22" ry="39" fill="url(#skin)"/><ellipse cx="269" cy="211" rx="22" ry="39" fill="url(#skin)"/>
+          <path d="M91 194 Q106 200 99 224 M269 194 Q254 200 261 224" fill="none" stroke="#c8793f" stroke-width="5" stroke-linecap="round"/>
+          <g id="head">
+            <!-- face -->
+            <path d="M91 152 Q91 75 180 65 Q269 75 269 152 L259 238 Q250 294 180 316 Q110 294 101 238Z" fill="url(#skin)" stroke="#cb8145" stroke-width="1.5"/>
+            <!-- hair cap -->
+            <path d="M91 169 Q79 105 114 75 Q143 43 180 48 Q222 44 248 77 Q280 111 269 170 L258 137 Q253 103 230 88 Q208 75 180 78 Q146 76 125 96 Q106 116 103 151Z" fill="url(#hair)"/>
+            <path d="M107 103 Q132 68 164 66 M139 79 Q165 56 193 65 M188 63 Q219 63 241 91" fill="none" stroke="#74504a" stroke-width="4" stroke-linecap="round" opacity=".75"/>
+            <!-- brows -->
+            <path d="M116 157 Q139 137 164 155 M196 155 Q221 137 244 157" fill="none" stroke="#3d2926" stroke-width="9" stroke-linecap="round"/>
+            <!-- eyes whites -->
+            <g id="eyeWhites"><ellipse cx="143" cy="181" rx="28" ry="23" fill="#fffaf5"/><ellipse cx="217" cy="181" rx="28" ry="23" fill="#fffaf5"/></g>
+            <g id="pupils"><ellipse cx="145" cy="182" rx="14" ry="17" fill="#553a2c"/><ellipse cx="215" cy="182" rx="14" ry="17" fill="#553a2c"/><ellipse cx="147" cy="183" rx="8" ry="11" fill="#171a22"/><ellipse cx="217" cy="183" rx="8" ry="11" fill="#171a22"/><circle cx="151" cy="176" r="4.5" fill="white"/><circle cx="221" cy="176" r="4.5" fill="white"/></g>
+            <g id="lids" opacity="0"><path d="M114 181 Q143 151 171 181Z M189 181 Q217 151 246 181Z" fill="#d88a4b"/></g>
+            <!-- nose -->
+            <path d="M176 185 Q163 215 165 224 Q180 235 196 223 Q198 215 184 185" fill="#e9984e" opacity=".8"/>
+            <ellipse cx="166" cy="223" rx="8" ry="5" fill="#d98543"/><ellipse cx="194" cy="223" rx="8" ry="5" fill="#d98543"/>
+            <!-- moustache -->
+            <path d="M126 229 Q139 210 161 218 Q180 225 199 218 Q222 210 234 229 Q229 245 209 244 Q193 238 180 237 Q164 239 150 245 Q131 244 126 229Z" fill="#332622"/>
+            <path d="M139 226 Q160 223 178 231 Q199 223 221 226" fill="none" stroke="#68463a" stroke-width="2" stroke-linecap="round"/>
+            <!-- mouth: animated opening under moustache -->
+            <g id="mouth">
+              <path id="mouthInside" d="M148 246 Q180 259 212 246 Q181 277 148 246Z" fill="#772f36"/>
+              <path id="teeth" d="M154 249 Q180 258 206 249 Q200 259 180 260 Q160 259 154 249Z" fill="#fff1dc" opacity=".8"/>
+              <path id="lowerLip" d="M154 258 Q180 268 206 258 Q181 278 154 258Z" fill="#c86c64" opacity=".85"/>
+            </g>
+            <path d="M132 274 Q180 298 228 274" fill="none" stroke="#d48646" stroke-width="3" opacity=".5"/>
+            <!-- blink overlays -->
+            <g id="blinkL" opacity="0"><path d="M115 180 Q143 151 171 180 Q143 191 115 180Z" fill="#efaa59"/></g>
+            <g id="blinkR" opacity="0"><path d="M189 180 Q217 151 246 180 Q217 191 189 180Z" fill="#efaa59"/></g>
+          </g>
+        </svg>
+      </div>
+      <div class="footer-note">Stylized 2D vector avatar · mic stays in your browser</div>
+    </div>
+  </section>
+  <aside class="card controls">
+    <h2>Avatar controls</h2>
+    <p class="desc">Try the speaking demo, or enable your microphone for volume-driven mouth animation. Microphone audio is processed locally and not uploaded.</p>
+    <div class="button-row">
+      <button class="primary" id="micBtn">🎙 Enable mic</button>
+      <button class="secondary" id="demoBtn">▶ Demo talk</button>
+    </div>
+    <button class="stop full" id="stopBtn">■ Stop audio animation</button>
+    <div class="setting">
+      <label for="mouthGain">Mouth sensitivity <span id="gainVal">1.8×</span></label>
+      <input id="mouthGain" type="range" min="0.5" max="4" step="0.1" value="1.8">
+    </div>
+    <div class="setting">
+      <label for="headMotion">Head movement <span id="headVal">Normal</span></label>
+      <input id="headMotion" type="range" min="0" max="100" step="1" value="45">
+    </div>
+    <div class="setting">
+      <label for="expression">Expression</label>
+      <select id="expression"><option value="friendly">Friendly smile</option><option value="focused">Focused</option><option value="excited">Excited</option></select>
+    </div>
+    <div class="setting">
+      <label>Microphone input level</label>
+      <div class="meter"><div class="meter-fill" id="meter"></div></div>
+      <div class="status-line" id="status">Ready. Click Enable mic and allow browser permission.</div>
+    </div>
+    <div class="hint"><strong>For best results</strong><br>Microphone access generally requires HTTPS or localhost. This prototype animates the mouth from loudness, not exact phonemes. Accurate lip-sync needs viseme/phoneme data and a rigged 3D model.</div>
+    <div class="hint"><strong>Privacy</strong><br>This page does not record, save, or upload microphone audio. Stop the microphone when finished.</div>
+  </aside>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const scene = $('scene'), avatar = $('avatar'), head = $('head');
+  const mouth = $('mouth'), mouthInside = $('mouthInside'), teeth = $('teeth'), lowerLip = $('lowerLip');
+  const blinkL = $('blinkL'), blinkR = $('blinkR'), pupils = $('pupils'), eyeWhites = $('eyeWhites');
+  const badge = $('badge'), status = $('status'), meter = $('meter');
+  let audioContext = null, analyser = null, stream = null, source = null, raf = 0, demo = false;
+  let currentLevel = 0, smoothed = 0, lastBlink = performance.now() + 1600, blinkStart = 0;
+  let gain = 1.8, headAmount = 0.45, expression = 'friendly';
+  let gazeX = 0, gazeY = 0, targetX = 0, targetY = 0;
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // The eye whites are fixed to the animated head; move only the pupil group.
+  // The gaze responds to mouse position without needing a webcam or server.
+  function lookAt(x, y) {
+    if (reducedMotion) return;
+    const bounds = eyeWhites.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const dx = x - bounds.left - bounds.width / 2;
+    const dy = y - bounds.top - bounds.height / 2;
+    const angle = Math.atan2(dy, dx);
+    const distance = Math.min(1, Math.hypot(dx / 155, dy / 130));
+    targetX = Math.cos(angle) * distance * 8.5;
+    targetY = Math.sin(angle) * distance * 5.5;
+  }
+  function resetGaze() { targetX = 0; targetY = 0; }
+  window.addEventListener('pointermove', event => {
+    if (event.pointerType === 'touch' && !scene.contains(event.target)) return;
+    lookAt(event.clientX, event.clientY);
+  }, {passive:true});
+  window.addEventListener('pointerout', event => { if (!event.relatedTarget) resetGaze(); });
+  window.addEventListener('blur', resetGaze);
+  window.addEventListener('pointerup', event => { if (event.pointerType === 'touch') resetGaze(); });
+
+  function setStatus(text, state='ready') {
+    status.textContent = text;
+    badge.textContent = state === 'live' ? '● Mic live' : state === 'talk' ? '● Speaking' : '● Ready';
+    badge.style.background = state === 'live' ? '#e6f8ef' : state === 'talk' ? '#fff2dc' : '#eaf8ef';
+    badge.style.color = state === 'live' ? '#237747' : state === 'talk' ? '#996000' : '#237747';
+  }
+  function setMouth(level) {
+    const open = Math.max(0, Math.min(1, level));
+    const y = 246 + open * 5;
+    mouthInside.setAttribute('d', `M148 246 Q180 ${y + 7} 212 246 Q181 ${267 + open*9} 148 246Z`);
+    teeth.setAttribute('opacity', String(Math.max(0, Math.min(.95, open * 1.4))));
+    lowerLip.setAttribute('d', `M154 ${255+open*4} Q180 ${265+open*10} 206 ${255+open*4} Q181 ${274+open*7} 154 ${255+open*4}Z`);
+    mouth.setAttribute('transform', `translate(0 ${open*1.5})`);
+    avatar.classList.toggle('speaking', demo);
+  }
+  function blink(now) {
+    if (!reducedMotion && !blinkStart && now > lastBlink) blinkStart = now;
+    if (blinkStart) {
+      const p = Math.min(1, (now - blinkStart) / 150);
+      const opacity = p < .5 ? p*2 : (1-p)*2;
+      blinkL.setAttribute('opacity', opacity.toFixed(2));
+      blinkR.setAttribute('opacity', opacity.toFixed(2));
+      if (p >= 1) { blinkStart = 0; lastBlink = now + 2200 + Math.random()*2600; blinkL.setAttribute('opacity','0'); blinkR.setAttribute('opacity','0'); }
+    }
+  }
+  function animate(now) {
+    raf = requestAnimationFrame(animate);
+    let level = 0;
+    if (analyser && !demo) {
+      const data = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (let i=0;i<data.length;i++) { const v = (data[i]-128)/128; sum += v*v; }
+      level = Math.sqrt(sum/data.length) * gain * 3.5;
+      level = Math.min(1, level);
+      currentLevel = level;
+    } else if (demo) {
+      level = .22 + Math.abs(Math.sin(now/105))*.52 + Math.abs(Math.sin(now/63))*.12;
+      level = Math.min(1, level);
+    }
+    smoothed += (level - smoothed) * (level > smoothed ? .45 : .17);
+    setMouth(smoothed);
+    meter.style.width = `${Math.min(100, smoothed*100)}%`;
+    blink(now);
+    const sway = Math.sin(now/1700)*headAmount*1.5;
+    const nod = Math.sin(now/1100)*headAmount*1.1;
+    head.style.animation = 'none';
+    head.style.transform = `rotate(${sway}deg) translateY(${nod}px)`;
+    gazeX += (targetX - gazeX) * .16;
+    gazeY += (targetY - gazeY) * .16;
+    pupils.setAttribute('transform', `translate(${gazeX.toFixed(2)} ${gazeY.toFixed(2)})`);
+  }
+  function startAnimation() { if (!raf) raf = requestAnimationFrame(animate); }
+  async function startMic() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setStatus('Microphone unavailable. Open this page on HTTPS or localhost.', 'ready'); return;
+    }
+    try {
+      stopAll(false);
+      stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true, autoGainControl:true}, video:false});
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = .72;
+      source = audioContext.createMediaStreamSource(stream); source.connect(analyser);
+      demo = false; startAnimation();
+      $('micBtn').textContent = '🎙 Mic enabled';
+      setStatus('Listening locally. Speak to animate the mouth.', 'live');
+    } catch (err) {
+      setStatus(err && err.name === 'NotAllowedError' ? 'Mic permission denied. Allow access in browser settings.' : 'Could not start microphone: ' + (err.message || err), 'ready');
+    }
+  }
+  function startDemo() {
+    stopAll(false); demo = true; startAnimation(); $('micBtn').textContent='🎙 Enable mic';
+    setStatus('Demo speaking animation is running.', 'talk');
+  }
+  function stopAll(update=true) {
+    demo = false; analyser = null; currentLevel = 0; smoothed = 0;
+    if (source) { try { source.disconnect(); } catch(e){} source = null; }
+    if (stream) { stream.getTracks().forEach(t=>t.stop()); stream = null; }
+    if (audioContext) { audioContext.close().catch(()=>{}); audioContext = null; }
+    meter.style.width='0%'; setMouth(0); $('micBtn').textContent='🎙 Enable mic';
+    if (update) setStatus('Stopped. Audio is no longer being processed.', 'ready');
+  }
+  $('micBtn').addEventListener('click', startMic);
+  $('demoBtn').addEventListener('click', startDemo);
+  $('stopBtn').addEventListener('click', () => stopAll(true));
+  $('mouthGain').addEventListener('input', e => { gain=Number(e.target.value); $('gainVal').textContent=gain.toFixed(1)+'×'; });
+  $('headMotion').addEventListener('input', e => { headAmount=Number(e.target.value)/100; $('headVal').textContent=headAmount===0?'Off':headAmount<.35?'Subtle':headAmount<.7?'Normal':'Expressive'; });
+  $('expression').addEventListener('change', e => {
+    expression=e.target.value;
+    const brows = head.querySelectorAll('path');
+    if(expression==='focused') { head.style.filter='saturate(.95)'; mouthInside.setAttribute('opacity','.75'); }
+    else if(expression==='excited') { head.style.filter='saturate(1.12)'; mouthInside.setAttribute('opacity','1'); }
+    else { head.style.filter='none'; mouthInside.setAttribute('opacity','1'); }
+  });
+  window.addEventListener('pagehide', () => { stopAll(false); resetGaze(); });
+  startAnimation();
+})();
+</script>
+</body>
+</html>

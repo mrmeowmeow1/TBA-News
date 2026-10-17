@@ -1,0 +1,20 @@
+# Render Blueprint: deploy from a GitHub repository containing the TBA directory contents.
+services:
+  - type: web
+    name: tba-news
+    runtime: python
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --access-logfile - --error-logfile - app:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: TBA_SENTIMENT_BACKEND
+        value: vader
+      - key: TBA_ENABLE_PARLER
+        value: "0"
+      - key: TBA_RESOLVE_GOOGLE_LINKS
+        value: "1"

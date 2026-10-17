@@ -1,0 +1,3 @@
+# Optional OFFLINE Piper voices only (not needed for Swara or Madhur).
+# Requires a compatible onnxruntime wheel; may not work on older Intel macOS / Python 3.14.
+piper-tts>=1.3,<2
