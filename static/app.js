@@ -5,6 +5,14 @@ const categoryNames = { top: 'Top stories', world: 'World', nation: 'India', bus
 const icons = { top: '◈', world: '◎', nation: '⌂', business: '▥', technology: '⌘', entertainment: '✧', sports: '◉', science: '✳', health: '♡' };
 const STORAGE = 'tba-bookmarks-v1';
 const PREVIOUS_STORAGE = 'innews-bookmarks-v1';
+
+// Keep the signed story reference when requesting images and article summaries.
+// The backend must include `story_ref` in each /api/news item.
+window.tbaStoryUrl = (path, item) => {
+    if (!item?.story_ref) return path;
+    const separator = path.includes('?') ? '&' : '?';
+    return path + separator + 'story=' + encodeURIComponent(item.story_ref);
+};
 let bookmarks = {};
 try {
     bookmarks = JSON.parse(localStorage.getItem(STORAGE) || localStorage.getItem(PREVIOUS_STORAGE) || '{}') || {};
@@ -57,7 +65,7 @@ function card(item) { const card = el('article', 'news-card'); const visual = el
     img.decoding = 'async';
     img.onload = () => img.classList.add('loaded');
     img.onerror = () => { img.onerror = null; img.remove(); };
-    img.src = '/api/image/' + encodeURIComponent(item.id);
+    img.src = window.tbaStoryUrl('/api/image/' + encodeURIComponent(item.id), item);
     visual.append(img);
 } const body = el('div', 'card-body'); const top = el('div', 'card-top'); const tag = el('span', 'category-tag', topicLabel(item)); tag.title = item.topic && item.topic.label && item.topic.label !== 'General' ? 'Topic detected from the headline by keyword similarity' : ''; const meta = el('div', 'card-meta'); const pill = sentimentPill(item); if (pill)
     meta.append(pill); meta.append(el('span', 'card-time', age(item.published))); top.append(tag, meta); const heading = el('h3', '', item.title); const description = el('p', 'description', item.description || 'Read the story and view its original source.'); const bottom = el('div', 'card-bottom'); const source = el('span', 'source', item.source || 'News source'); source.title = item.source || ''; if (item.story && item.story.size > 1) {
@@ -110,7 +118,7 @@ const LABELS = { loading: 'LOADING…', ai: 'AI SUMMARY', ai_partial: 'PARTIAL A
 function setLabel(type) { $('#summaryLabel').textContent = LABELS[type] || LABELS.article; }
 function setNote(text) { const note = $('#modalNote'); note.textContent = text || ''; note.hidden = !text; }
 function showModalImage(item) { const fig = $('#modalFigure'), img = $('#modalImage'); fig.hidden = true; img.onload = () => { if (state.selected?.id === item.id)
-    fig.hidden = false; }; img.onerror = () => { img.onerror = null; fig.hidden = true; img.removeAttribute('src'); }; img.src = '/api/image/' + encodeURIComponent(item.id); }
+    fig.hidden = false; }; img.onerror = () => { img.onerror = null; fig.hidden = true; img.removeAttribute('src'); }; img.src = window.tbaStoryUrl('/api/image/' + encodeURIComponent(item.id), item); }
 function renderLoading() { const box = $('#modalSummary'); box.setAttribute('aria-busy', 'true'); setLabel('loading'); setNote(''); const row = el('div', 'qr-loading'); row.setAttribute('role', 'status'); row.append(el('span', 'qr-spinner'), el('span', '', 'Reading the article and preparing an overview…')); box.replaceChildren(row); }
 function retryButton(item, text) { const b = el('button', 'outline-btn qr-retry', text || '↻ Try again'); b.type = 'button'; b.addEventListener('click', () => loadOverview(item, true)); return b; }
 function block(title, content) { const wrap = el('div', 'qr-block'); wrap.append(el('h4', '', title), content); return wrap; }
@@ -217,8 +225,8 @@ function loadRelated(item) {
 }
 function renderError(item, err) { const box = $('#modalSummary'); box.setAttribute('aria-busy', 'false'); setLabel('error'); setNote(''); box.replaceChildren(el('p', 'qr-empty', err.expired ? 'This story has expired from the feed. Refresh the feed and try again.' : (err.message && err.message !== 'Failed to fetch' ? err.message : 'The overview could not be loaded. Check your connection and try again.'))); if (!err.expired)
     box.append(retryButton(item)); }
-function fetchOverview(id, retry) { const key = id + (retry ? ':retry' : ''); if (inflight.has(key))
-    return inflight.get(key); const p = fetch('/api/article/' + encodeURIComponent(id) + (retry ? '?retry=1' : '')).then(async (r) => { const data = await r.json().catch(() => ({})); if (!r.ok)
+function fetchOverview(item, retry) { const id = item.id; const key = id + (retry ? ':retry' : ''); if (inflight.has(key))
+    return inflight.get(key); const p = fetch(window.tbaStoryUrl('/api/article/' + encodeURIComponent(id) + (retry ? '?retry=1' : ''), item)).then(async (r) => { const data = await r.json().catch(() => ({})); if (!r.ok)
     throw Object.assign(new Error(data.error || 'The overview could not be loaded.'), { expired: r.status === 404 }); return data; }).finally(() => inflight.delete(key)); inflight.set(key, p); return p; }
 function loadOverview(item, retry = false) {
     const hit = articleCache.get(item.id);
@@ -227,7 +235,7 @@ function loadOverview(item, retry = false) {
         return;
     }
     renderLoading();
-    fetchOverview(item.id, retry).then(data => { if (state.selected?.id !== item.id)
+    fetchOverview(item, retry).then(data => { if (state.selected?.id !== item.id)
         return; if ((data.summary_type === 'article' || data.summary_type === 'partial') && !data.ai_retryable)
         articleCache.set(item.id, data); renderOverview(item, data); }).catch(err => { if (state.selected?.id === item.id)
         renderError(item, err); });
@@ -287,4 +295,3 @@ catch { }
 saveBookmarks();
 updateHead();
 fetchStories();
-// hellp

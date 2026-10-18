@@ -40,6 +40,8 @@ from flask import Flask, jsonify, render_template, request, Response
 from PIL import Image, UnidentifiedImageError
 from dotenv import load_dotenv
 
+from itsdangerous import URLSafeSerializer, BadSignature
+
 # Load local settings before importing services or reading environment variables.
 # Shell-set variables take precedence over .env (override=False).
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
@@ -50,7 +52,28 @@ from services.enrichment import enrich_items
 from services.sentiment import analyze_sentiment
 from services.similarity import article_text, recommend
 
+
+
 app = Flask(__name__)
+
+STORY_SIGNING_KEY = os.environ["TBA_STORY_SIGNING_KEY"]
+
+STORY_SIGNER = URLSafeSerializer(
+    STORY_SIGNING_KEY,
+    salt="tba-story-v1"
+)
+
+def story_reference(item):
+    payload = {
+        "id": item["id"],
+        "url": item["url"],
+        "title": item.get("title", "")[:350],
+        "source": item.get("source", "")[:120],
+        "image": item.get("image"),
+        "description": item.get("description", "")[:600],
+    }
+    return STORY_SIGNER.dumps(payload)
+
 app.json.ensure_ascii = False
 logging.basicConfig(level=logging.INFO)
 
@@ -82,6 +105,50 @@ ANALYSIS_SLOTS = threading.BoundedSemaphore(6)   # simultaneous publisher-page a
 GOOGLE_SLOTS = threading.BoundedSemaphore(2)     # simultaneous Google link-resolution calls
 
 STOPWORDS = set("the a an and or but at on in of to for from by with is are was were it its this that as be been will would can could should has have had not their they you your we our into than after before about over under across says said also who what when where why how just new more most many some news amid according during all if up out he she his her them us do did so".split())
+
+def restore_story(article_id):
+    token = request.args.get("story", "")
+
+    if not token or len(token) > 10000:
+        return False
+
+    try:
+        data = STORY_SIGNER.loads(token)
+        url = data.get("url", "")
+
+        if not (
+            isinstance(data, dict)
+            and data.get("id") == article_id
+            and isinstance(url, str)
+            and len(url) <= 2500
+            and url.startswith("https://")
+            and hashlib.sha256(
+                url.encode()
+            ).hexdigest()[:20] == article_id
+        ):
+            return False
+
+    except (BadSignature, ValueError, TypeError, AttributeError):
+        return False
+
+    now = time.time()
+
+    with LOCK:
+        KNOWN_URLS[article_id] = (url, now)
+        FEED_META.setdefault(article_id, {
+            "title": str(data.get("title", ""))[:350],
+            "source": str(data.get("source", ""))[:120],
+            "image": data.get("image"),
+            "images": (
+                [data["image"]]
+                if isinstance(data.get("image"), str)
+                else []
+            ),
+            "description": str(data.get("description", ""))[:600],
+            "t": now,
+        })
+
+    return True
 
 
 class TTLCache:
@@ -1079,44 +1146,116 @@ def index():
     return render_template("index.html")
 
 
+
 @app.get("/api/news")
 def news():
     category = request.args.get("category", "top").lower().strip()
     query = request.args.get("q", "").strip()
     force = request.args.get("refresh") == "1"
+
     if category not in CATEGORIES:
         return jsonify(error="Unknown category"), 400
+
     if len(query) > 100:
         return jsonify(error="Search must be 100 characters or fewer"), 400
+
     key = (category, query.casefold())
+
+    # Return cached articles, ensuring each has a signed reference.
     with LOCK:
         hit = NEWS_CACHE.get(key)
+
         if hit and not force and time.time() - hit[0] < TTL:
-            return jsonify(items=hit[1], updated=hit[2], cached=True)
+            items = hit[1]
+
+            for item in items:
+                if "story_ref" not in item:
+                    item["story_ref"] = story_reference(item)
+
+            return jsonify(
+                items=items,
+                updated=hit[2],
+                cached=True
+            )
+
     try:
-        content, _ = safe_get(feed_url(category, query), timeout=12)
+        # Fetch latest news from Google News RSS.
+        content, _ = safe_get(
+            feed_url(category, query),
+            timeout=12
+        )
+
         items = parse_feed(content, category)
+
+        # Apply existing ML/NLP enrichment.
         try:
-            enrich_items(items, {i["id"]: (FEED_META.get(i["id"]) or {}).get("description", "") for i in items})
-        except Exception as exc:       # the ML layer is an enhancement: a failure must never hide the news
-            app.logger.warning("Feed enrichment failed: %s", type(exc).__name__)
+            enrich_items(
+                items,
+                {
+                    i["id"]: (
+                        FEED_META.get(i["id"]) or {}
+                    ).get("description", "")
+                    for i in items
+                }
+            )
+        except Exception as exc:
+            app.logger.warning(
+                "Feed enrichment failed: %s",
+                type(exc).__name__
+            )
+
+        # NEW: Generate signed reference for every article.
+        for item in items:
+            item["story_ref"] = story_reference(item)
+
         updated = datetime.now(timezone.utc).isoformat()
+
         with LOCK:
-            NEWS_CACHE[key] = (time.time(), items, updated)
-        return jsonify(items=items, updated=updated, cached=False)
+            NEWS_CACHE[key] = (
+                time.time(),
+                items,
+                updated
+            )
+
+        return jsonify(
+            items=items,
+            updated=updated,
+            cached=False
+        )
+
     except (requests.RequestException, ValueError) as exc:
-        app.logger.warning("RSS request failed: %s", exc)
+        app.logger.warning(
+            "RSS request failed: %s",
+            exc
+        )
+
         with LOCK:
             previous = NEWS_CACHE.get(key)
+
         if previous:
-            return jsonify(items=previous[1], updated=previous[2], cached=True, stale=True)
-        return jsonify(error="The news feed is temporarily unavailable. Please try again."), 502
+            items = previous[1]
+
+            for item in items:
+                if "story_ref" not in item:
+                    item["story_ref"] = story_reference(item)
+
+            return jsonify(
+                items=items,
+                updated=previous[2],
+                cached=True,
+                stale=True
+            )
+
+        return jsonify(
+            error="The news feed is temporarily unavailable. Please try again."
+        ), 502
 
 
 @app.get("/api/article/<article_id>")
 def article(article_id):
     if not re.fullmatch(r"[0-9a-f]{20}", article_id):
         return jsonify(error="Invalid article identifier"), 400
+    restore_story(article_id)
     retry = request.args.get("retry") == "1"
 
     def retry_wanted(payload):
@@ -1154,6 +1293,7 @@ def article_image(article_id):
     """
     if not re.fullmatch(r"[0-9a-f]{20}", article_id):
         return "Invalid image id", 400
+    restore_story(article_id)
     headers = {"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox"}
     with LOCK:
         known = KNOWN_URLS.get(article_id)
@@ -1241,6 +1381,7 @@ def avatar_narration(article_id):
     """
     if not re.fullmatch(r"[0-9a-f]{20}", article_id):
         return jsonify(error="Invalid article identifier"), 400
+    restore_story(article_id)
     with LOCK:
         known = KNOWN_URLS.get(article_id)
         metadata = FEED_META.get(article_id, {}).copy()
@@ -1463,6 +1604,7 @@ def avatar_voice_service(article_id):
     """
     if not re.fullmatch(r"[0-9a-f]{20}", article_id):
         return jsonify(error="Invalid story identifier"), 400
+    restore_story(article_id)
     body = request.get_json(silent=True) or {}
     if not isinstance(body, dict):
         return jsonify(error="Expected JSON object"), 400
