@@ -1120,23 +1120,59 @@ def prepare_image(raw):
         return None
 
 
-def first_valid_image(urls, max_tries=4):
-    tried = 0
+
+def first_valid_image(urls, max_tries=6):
+    urls = list(dict.fromkeys(urls or []))
+    attempted = 0
+
+    app.logger.info(
+        "TBA IMAGE: %d candidates found", len(urls)
+    )
+
     for url in urls:
-        if tried >= max_tries:
+        if attempted >= max_tries:
             break
+
         if is_branding_image(url):
             continue
-        tried += 1
-        try:
-            raw, _ = safe_get(url, timeout=7, limit=4_000_000, accept=IMAGE_TYPES)
-        except (requests.RequestException, ValueError, UnicodeError):
-            continue
-        prepared = prepare_image(raw)
-        if prepared:
-            return prepared
-    return None
 
+        attempted += 1
+        host = urlparse(url).hostname or "unknown"
+
+        try:
+            raw, _ = safe_get(
+                url,
+                timeout=9,
+                limit=4_000_000,
+                accept=IMAGE_TYPES
+            )
+
+            result = prepare_image(raw)
+
+            if result:
+                app.logger.info(
+                    "TBA IMAGE SUCCESS: %s", host
+                )
+                return result
+
+            app.logger.warning(
+                "TBA IMAGE REJECTED: %s "
+                "(format, dimensions or aspect ratio)",
+                host
+            )
+
+        except (requests.RequestException, ValueError, UnicodeError) as exc:
+            app.logger.warning(
+                "TBA IMAGE FAILED: %s - %s",
+                host,
+                str(exc)[:180]
+            )
+
+    app.logger.warning(
+        "TBA IMAGE: no image after %d attempts",
+        attempted
+    )
+    return None
 
 # ---------------------------------------------------------------------------------------------
 # Routes
@@ -1285,41 +1321,87 @@ def article(article_id):
 
 @app.get("/api/image/<article_id>")
 def article_image(article_id):
-    """Return a verified picture for the story, fetched by our backend.
-
-    Order: images supplied by the RSS item, then publisher page metadata (og:image, twitter:image,
-    JSON-LD). Many publishers forbid hotlinking and some pages cannot be resolved, so 404 is a
-    normal, cached answer; the browser then shows the category placeholder (never a logo).
-    """
     if not re.fullmatch(r"[0-9a-f]{20}", article_id):
         return "Invalid image id", 400
+
     restore_story(article_id)
-    headers = {"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox"}
+
     with LOCK:
         known = KNOWN_URLS.get(article_id)
+
     if not known:
         return "Story expired", 404
 
+    headers = {
+        "Cache-Control": "public, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox"
+    }
+
     def respond(entry):
         if entry["data"] is None:
-            return "No article image available", 404
-        return Response(entry["data"], mimetype=entry["mime"], headers=headers)
+            return (
+                "No article image available",
+                404,
+                {"Cache-Control": "no-store"}
+            )
+        return Response(
+            entry["data"],
+            mimetype=entry["mime"],
+            headers=headers
+        )
 
     cached = IMAGE_CACHE.get(article_id)
-    if cached:
+    if cached is not None:
         return respond(cached)
+
     with id_lock("image", article_id):
         cached = IMAGE_CACHE.get(article_id)
-        if cached:
+        if cached is not None:
             return respond(cached)
-        found = first_valid_image((FEED_META.get(article_id) or {}).get("images") or [])
+
+        with LOCK:
+            rss_images = list(
+                (FEED_META.get(article_id) or {}).get("images") or []
+            )
+
+        app.logger.info(
+            "TBA IMAGE %s: RSS candidates=%d",
+            article_id,
+            len(rss_images)
+        )
+
+        found = first_valid_image(rss_images)
+
         if not found:
             analysis = analyze_article(article_id)
+
+            app.logger.info(
+                "TBA IMAGE %s: publisher status=%s, images=%d",
+                article_id,
+                analysis.get("status"),
+                len(analysis.get("images") or [])
+            )
+
             if analysis["status"] == "busy":
-                return "Server busy", 503            # not cached: the browser may ask again later
-            found = first_valid_image(analysis.get("images") or [])
-        entry = {"data": found[0], "mime": found[1]} if found else {"data": None, "mime": None}
-        IMAGE_CACHE.set(article_id, entry, ttl=3600 if found else 1800)
+                return "Server busy", 503
+
+            found = first_valid_image(
+                analysis.get("images") or []
+            )
+
+        entry = (
+            {"data": found[0], "mime": found[1]}
+            if found
+            else {"data": None, "mime": None}
+        )
+
+        IMAGE_CACHE.set(
+            article_id,
+            entry,
+            ttl=3600 if found else 120
+        )
+
         return respond(entry)
 
 
