@@ -23,3 +23,7 @@ __pycache__/
 # Local downloads and generated files
 *.log
 models/
+<<<<<<< HEAD
+=======
+
+>>>>>>> b23b3e4 (intital commit)
