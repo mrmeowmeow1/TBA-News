@@ -338,11 +338,27 @@ def normalized_date(entry):
 
 
 def feed_url(category, query):
+    # Keep Google News search functionality.
     if query:
-        return f"{RSS_ROOT}/search?q={quote_plus(query)}&hl=en-IN&gl=IN&ceid=IN:en"
+        return (
+            f"{RSS_ROOT}/search?"
+            f"q={quote_plus(query)}"
+            "&hl=en-IN&gl=IN&ceid=IN:en"
+        )
+
+    # Temporary diagnostic: a direct publisher RSS feed.
+    if category == "top":
+        return "https://feeds.bbci.co.uk/news/rss.xml"
+
+    # Keep the original Google News categories.
     if category == "top":
         return f"{RSS_ROOT}?hl=en-IN&gl=IN&ceid=IN:en"
-    return f"{RSS_ROOT}/headlines/section/topic/{CATEGORIES[category]}?hl=en-IN&gl=IN&ceid=IN:en"
+
+    return (
+        f"{RSS_ROOT}/headlines/section/topic/"
+        f"{CATEGORIES[category]}"
+        "?hl=en-IN&gl=IN&ceid=IN:en"
+    )
 
 
 def is_branding_image(url):
