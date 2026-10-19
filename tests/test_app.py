@@ -121,6 +121,14 @@ class AppTestCase(unittest.TestCase):
         patcher = patch.object(app, "safe_get", self.web)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # Resolver tests use example publisher domains.  The network fetcher is
+        # already replaced above, so DNS validation must not reach the real network.
+        public_url = patch.object(app, "safe_public_url", return_value=True)
+        public_url.start()
+        self.addCleanup(public_url.stop)
+        decoder = patch.object(app, "decode_google_news", return_value=None)
+        decoder.start()
+        self.addCleanup(decoder.stop)
 
     def register(self, link=None, title="Council approves metro extension", source="Example Times", description="", images=None):
         link = link or GOOGLE_PREFIX + make_token(PUBLISHER_URL)
@@ -333,6 +341,25 @@ class GoogleResolveTests(AppTestCase):
     def test_offline_decode_rejects_garbage_and_new_format(self):
         for bad in ("", "!!!", "AU_yqLNewFormatTokenThatNeedsGoogle", base64.urlsafe_b64encode(b"\x08\x13\x22\x05hello").decode()):
             self.assertIsNone(app.decode_google_token_offline(bad), bad)
+
+    def test_current_google_links_are_resolved_in_one_indian_batch(self):
+        token = "AU_yqL" + "x" * 48
+        link = GOOGLE_PREFIX + token
+        item = {"id": "a" * 20, "url": link}
+        with patch.object(app, "decode_google_news_many", return_value={link: PUBLISHER_URL}) as decoder:
+            app.resolve_feed_publishers([item], 123.0)
+        decoder.assert_called_once_with(
+            [link], ceid="IN:en", concurrency=8, timeout=8.0
+        )
+        self.assertEqual(app.PUBLISHER_LINKS[item["id"]], (PUBLISHER_URL, 123.0))
+        self.assertEqual(app.RESOLVE_CACHE.get(token), PUBLISHER_URL)
+
+    def test_on_demand_google_decoder_uses_indian_locale(self):
+        token = "AU_yqL" + "y" * 48
+        link = GOOGLE_PREFIX + token
+        with patch.object(app, "decode_google_news", return_value=PUBLISHER_URL) as decoder:
+            self.assertEqual(app.resolve_google_url(link), PUBLISHER_URL)
+        decoder.assert_called_once_with(link, ceid="IN:en", timeout=12.0)
 
     def test_resolve_uses_offline_without_network(self):
         link = GOOGLE_PREFIX + make_token(PUBLISHER_URL)

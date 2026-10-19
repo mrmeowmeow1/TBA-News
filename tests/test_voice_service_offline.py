@@ -31,6 +31,7 @@ request=Request()
 SCOPE={'re':re,'hashlib':hashlib,'request':request,'jsonify':lambda **kw:FakeResponse(kw),
  'Response':FakeResponse,'id_lock':lambda *args:nullcontext(),
  'FEMALE_AUDIO_CACHE':Cache(),'app':type('App',(),{'logger':logging.getLogger('test-wav')})(),
+ 'restore_story':lambda article_id:False,
  'avatar_narration':lambda ident:FakeResponse({'language':'hi-IN','fallback':False,'text':'यह एक सत्यापित हिंदी समाचार का संक्षिप्त विवरण है।'})}
 exec(compile(ast.Module(body=[FN],type_ignores=[]),str(ROOT/'app.py'),'exec'),SCOPE)
 SAMPLE_FN=next(n for n in TREE.body if isinstance(n, ast.FunctionDef) and n.name=='avatar_voice_service_sample')

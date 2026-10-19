@@ -1,8 +1,8 @@
-"""TBA: lightweight Flask API for Google News RSS, publisher images and Quick Read overviews.
+"""TBA: lightweight Flask API for curated direct RSS feeds and optional Quick Read overviews.
 
 Pipeline overview
 -----------------
-1. ``/api/news`` fetches an RSS feed and returns cards.  Image hints and the full RSS
+1. ``/api/news`` fetches curated direct publisher RSS feeds and returns cards.  Image hints and the full RSS
    description are remembered server-side (``FEED_META``).
 2. Google News links are encoded redirect pages.  ``resolve_google_url`` turns them into the
    publisher URL (offline for legacy tokens, via Google's own redirect service otherwise).
@@ -27,6 +27,7 @@ import socket
 import threading
 import time
 from collections import Counter, OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
@@ -39,7 +40,7 @@ from bs4 import BeautifulSoup
 from flask import Flask, jsonify, render_template, request, Response
 from PIL import Image, UnidentifiedImageError
 from dotenv import load_dotenv
-from gnews_decoder import decode as decode_google_news
+
 from itsdangerous import URLSafeSerializer, BadSignature
 
 # Load local settings before importing services or reading environment variables.
@@ -51,6 +52,7 @@ from services.categorizer import classify_topic
 from services.enrichment import enrich_items
 from services.sentiment import analyze_sentiment
 from services.similarity import article_text, recommend
+from services.rss_sources import allowed_sources
 
 
 
@@ -71,6 +73,8 @@ def story_reference(item):
         "source": item.get("source", "")[:120],
         "image": item.get("image"),
         "description": item.get("description", "")[:600],
+        "allow_article_fetch": bool(item.get("allow_article_fetch", False)),
+        "allow_images": bool(item.get("allow_images", False)),
     }
     return STORY_SIGNER.dumps(payload)
 
@@ -103,7 +107,6 @@ _ID_LOCKS = {}
 LOCK = threading.RLock()
 ANALYSIS_SLOTS = threading.BoundedSemaphore(6)   # simultaneous publisher-page analyses
 GOOGLE_SLOTS = threading.BoundedSemaphore(2)     # simultaneous Google link-resolution calls
-
 
 STOPWORDS = set("the a an and or but at on in of to for from by with is are was were it its this that as be been will would can could should has have had not their they you your we our into than after before about over under across says said also who what when where why how just new more most many some news amid according during all if up out he she his her them us do did so".split())
 
@@ -147,6 +150,8 @@ def restore_story(article_id):
             ),
             "description": str(data.get("description", ""))[:600],
             "t": now,
+            "allow_article_fetch": data.get("allow_article_fetch") is True,
+            "allow_images": data.get("allow_images") is True,
         })
 
     return True
@@ -337,27 +342,12 @@ def normalized_date(entry):
     return None
 
 
-
 def feed_url(category, query):
     if query:
-        return (
-            f"{RSS_ROOT}/search?"
-            f"q={quote_plus(query)}"
-            "&hl=en-IN&gl=IN&ceid=IN:en"
-        )
-
+        return f"{RSS_ROOT}/search?q={quote_plus(query)}&hl=en-IN&gl=IN&ceid=IN:en"
     if category == "top":
-        return (
-            f"{RSS_ROOT}?"
-            "hl=en-IN&gl=IN&ceid=IN:en"
-        )
-
-    return (
-        f"{RSS_ROOT}/headlines/section/topic/"
-        f"{CATEGORIES[category]}"
-        "?hl=en-IN&gl=IN&ceid=IN:en"
-    )
-
+        return f"{RSS_ROOT}?hl=en-IN&gl=IN&ceid=IN:en"
+    return f"{RSS_ROOT}/headlines/section/topic/{CATEGORIES[category]}?hl=en-IN&gl=IN&ceid=IN:en"
 
 
 def is_branding_image(url):
@@ -477,7 +467,7 @@ def meaningful_description(description, title="", source=""):
     return True
 
 
-def parse_feed(content, category):
+def parse_feed(content, category, feed_source=None):
     feed = feedparser.parse(content)
     items = []
     now = time.time()
@@ -486,7 +476,7 @@ def parse_feed(content, category):
         if not link.startswith("https://"):
             continue
         title = strip_markup(entry.get("title", "Untitled"))
-        source = source_name(entry)
+        source = feed_source.name if feed_source else source_name(entry)
         if title.endswith(" - " + source):
             title = title[:-(len(source) + 3)]
         if not title:
@@ -499,14 +489,27 @@ def parse_feed(content, category):
         else:
             # RSS descriptions are often just links and source names; don't pass that off as a summary.
             description = "Open this story for a short summary and its original source."
-        images = image_candidates_from_entry(entry, link)
+        # Only use image URLs if their publisher has explicitly permitted TBA
+        # to redistribute/proxy them. RSS visibility alone is not permission.
+        allow_images = bool(feed_source and feed_source.allow_images)
+        images = image_candidates_from_entry(entry, link) if allow_images else []
         image = images[0] if images else None
-        publisher_url = publisher_link_from_summary(entry.get("summary", ""), link)
+        publisher_url = publisher_link_from_summary(entry.get("summary", ""), link) if not feed_source else None
         if publisher_url:
             PUBLISHER_LINKS[ident] = (publisher_url, now)
-        card = {"id": ident, "title": title, "source": source, "url": link, "published": normalized_date(entry), "description": description, "category": category, "image": image}
+        # Feeds may limit reuse of text; only show an excerpt where allowed.
+        if feed_source and not feed_source.allow_feed_excerpt:
+            description = "Open the original story at the publisher."
+            full_description = ""
+        card = {"id": ident, "title": title, "source": source, "url": link,
+                "published": normalized_date(entry), "description": description,
+                "category": category, "image": image,
+                "allow_article_fetch": bool(feed_source and feed_source.allow_article_fetch),
+                "allow_images": allow_images}
         FEED_META[ident] = {"title": title, "source": source, "image": image, "images": images,
-                            "description": full_description[:1500] if real else "", "t": now, "item": card}
+                            "description": full_description[:1500] if real else "", "t": now,
+                            "allow_article_fetch": card["allow_article_fetch"],
+                            "allow_images": allow_images, "item": card}
         items.append(card)
     with LOCK:
         for item in items:
@@ -623,62 +626,21 @@ def decode_google_token_online(token):
         GOOGLE_SLOTS.release()
 
 
-
 def resolve_google_url(link):
+    """Publisher URL for a Google News article link, or None. Results (and failures) are cached."""
     token = google_token(link)
-
     if not token:
         return None
-
     cached = RESOLVE_CACHE.get(token)
-
     if cached is not None:
         return cached or None
-
-    # First try legacy offline decoding.
-    url = decode_google_token_offline(token)
-
-    if not url and RESOLVE_GOOGLE_LINKS:
-        # Try the updated Google News decoder.
-        try:
-            url = decode_google_news(
-                link,
-                timeout=12.0
-            )
-        except Exception as exc:
-            app.logger.warning(
-                "TBA Google decoder failed: %s",
-                type(exc).__name__
-            )
-
-        # Retain TBA's existing resolver as fallback.
-        if not url:
-            url = decode_google_token_online(token)
-
+    url = decode_google_token_offline(token) or decode_google_token_online(token)
+    if url and (urlparse(url).hostname or "").lower() in GOOGLE_HOSTS:
+        url = None
     if url and url.startswith("http://"):
         url = "https://" + url[7:]
-
-    # Only accept public HTTPS publisher URLs.
-    if (
-        not url
-        or _hostname(url) in GOOGLE_HOSTS
-        or not safe_public_url(url)
-    ):
-        url = None
-
-    app.logger.info(
-        "TBA Google News resolution: %s",
-        "success" if url else "unresolved"
-    )
-
-    RESOLVE_CACHE.set(
-        token,
-        url or "",
-        ttl=86400 if url else 120
-    )
-
+    RESOLVE_CACHE.set(token, url or "", ttl=86400 if url else 600)
     return url
-
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1004,6 +966,11 @@ def _analyze(article_id, link):
     else:
         target = link
     result["publisher_url"] = target
+    with LOCK:
+        rights_meta = (FEED_META.get(article_id) or {}).copy()
+    if not rights_meta.get("allow_article_fetch", False):
+        result["status"] = "licence"
+        return result
     if not target:
         return result
     try:
@@ -1057,6 +1024,7 @@ def analyze_article(article_id, force=False):
 
 
 UNAVAILABLE_MESSAGES = {
+    "licence": "This source is linked for attribution. TBA does not have permission to reproduce or summarize its full text.",
     "robots": "The publisher asks automated tools not to fetch this page, so TBA did not access it.",
     "blocked": "The publisher restricted access to this article (it may need a subscription or sign-in), so the full text could not be read.",
     "unresolved": "TBA could not find the publisher's page behind this Google News link.",
@@ -1177,59 +1145,89 @@ def prepare_image(raw):
         return None
 
 
-
-def first_valid_image(urls, max_tries=6):
-    urls = list(dict.fromkeys(urls or []))
-    attempted = 0
-
-    app.logger.info(
-        "TBA IMAGE: %d candidates found", len(urls)
-    )
-
+def first_valid_image(urls, max_tries=4):
+    tried = 0
     for url in urls:
-        if attempted >= max_tries:
+        if tried >= max_tries:
             break
-
         if is_branding_image(url):
             continue
-
-        attempted += 1
-        host = urlparse(url).hostname or "unknown"
-
+        tried += 1
         try:
-            raw, _ = safe_get(
-                url,
-                timeout=9,
-                limit=4_000_000,
-                accept=IMAGE_TYPES
-            )
-
-            result = prepare_image(raw)
-
-            if result:
-                app.logger.info(
-                    "TBA IMAGE SUCCESS: %s", host
-                )
-                return result
-
-            app.logger.warning(
-                "TBA IMAGE REJECTED: %s "
-                "(format, dimensions or aspect ratio)",
-                host
-            )
-
-        except (requests.RequestException, ValueError, UnicodeError) as exc:
-            app.logger.warning(
-                "TBA IMAGE FAILED: %s - %s",
-                host,
-                str(exc)[:180]
-            )
-
-    app.logger.warning(
-        "TBA IMAGE: no image after %d attempts",
-        attempted
-    )
+            raw, _ = safe_get(url, timeout=7, limit=4_000_000, accept=IMAGE_TYPES)
+        except (requests.RequestException, ValueError, UnicodeError):
+            continue
+        prepared = prepare_image(raw)
+        if prepared:
+            return prepared
     return None
+
+
+# ---------------------------------------------------------------------------------------------
+# Direct multi-source RSS collection.  This keeps Google News redirect decoding
+# entirely out of the initial feed request path.
+# ---------------------------------------------------------------------------------------------
+RSS_RAW_CACHE = TTLCache(max_items=60, ttl=900)
+RSS_FEED_LIMIT = 50  # maximum articles returned per category (when available)
+
+
+def fetch_direct_source(source, category, force=False):
+    """Fetch one curated RSS feed with bounded I/O and a 15-minute byte cache."""
+    cache_key = source.url
+    raw = None if force else RSS_RAW_CACHE.get(cache_key)
+    if raw is None:
+        with id_lock("rss", cache_key):
+            raw = None if force else RSS_RAW_CACHE.get(cache_key)
+            if raw is None:
+                raw, _ = safe_get(cache_key, timeout=5, limit=1_500_000)
+                RSS_RAW_CACHE.set(cache_key, raw, ttl=900)
+    return parse_feed(raw, category, feed_source=source)
+
+
+def collect_direct_news(category, query="", force=False):
+    """Bounded parallel fetch. A bad publisher cannot hide successful feeds."""
+    search_mode = bool(query)
+    sources = allowed_sources(category, search=search_mode)
+    if not sources:
+        return [], 0, 0
+
+    gathered = []
+    successes = 0
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        futures = {pool.submit(fetch_direct_source, src, category, force): src for src in sources}
+        for future in as_completed(futures):
+            source = futures[future]
+            try:
+                stories = future.result()
+                successes += 1
+                gathered.extend(stories)
+            except (requests.RequestException, ValueError, OSError) as exc:
+                app.logger.warning("RSS %s unavailable: %s", source.name, type(exc).__name__)
+
+    # Search is bounded to curated feed content, not an Internet-wide search.
+    if query:
+        terms = query.casefold().split()
+        gathered = [x for x in gathered if all(
+            term in (x["title"] + " " + x["source"]).casefold() for term in terms
+        )]
+        # Add already cached category items if present (no extra outbound calls).
+        with LOCK:
+            warmed = [entry[1] for key, entry in NEWS_CACHE.items() if not key[1]]
+        for cards in warmed:
+            gathered.extend(x for x in cards if all(
+                term in (x["title"] + " " + x["source"]).casefold() for term in terms
+            ))
+
+    unique = {}
+    for item in gathered:
+        unique.setdefault(item["url"].split("#", 1)[0], item)
+    ordered = sorted(
+        unique.values(),
+        key=lambda x: x.get("published") or "",
+        reverse=True,
+    )
+    return ordered[:RSS_FEED_LIMIT], successes, len(sources)
+
 
 # ---------------------------------------------------------------------------------------------
 # Routes
@@ -1245,103 +1243,40 @@ def news():
     category = request.args.get("category", "top").lower().strip()
     query = request.args.get("q", "").strip()
     force = request.args.get("refresh") == "1"
-
     if category not in CATEGORIES:
         return jsonify(error="Unknown category"), 400
-
     if len(query) > 100:
         return jsonify(error="Search must be 100 characters or fewer"), 400
-
     key = (category, query.casefold())
-
-    # Return cached articles, ensuring each has a signed reference.
     with LOCK:
-        hit = NEWS_CACHE.get(key)
+        cached = NEWS_CACHE.get(key)
+    if cached and not force and time.time() - cached[0] < TTL:
+        return jsonify(items=cached[1], updated=cached[2], cached=True)
 
-        if hit and not force and time.time() - hit[0] < TTL:
-            items = hit[1]
-
-            for item in items:
-                if "story_ref" not in item:
-                    item["story_ref"] = story_reference(item)
-
-            return jsonify(
-                items=items,
-                updated=hit[2],
-                cached=True
-            )
+    items, ok, attempted = collect_direct_news(category, query, force=force)
+    if not ok:
+        if cached:
+            return jsonify(items=cached[1], updated=cached[2], cached=True, stale=True)
+        return jsonify(error="News sources are temporarily unavailable."), 502
 
     try:
-        # Fetch latest news from Google News RSS.
-        content, _ = safe_get(
-            feed_url(category, query),
-            timeout=12
-        )
-
-        items = parse_feed(content, category)
-
-        # Apply existing ML/NLP enrichment.
-        try:
-            enrich_items(
-                items,
-                {
-                    i["id"]: (
-                        FEED_META.get(i["id"]) or {}
-                    ).get("description", "")
-                    for i in items
-                }
-            )
-        except Exception as exc:
-            app.logger.warning(
-                "Feed enrichment failed: %s",
-                type(exc).__name__
-            )
-
-        # NEW: Generate signed reference for every article.
-        for item in items:
-            item["story_ref"] = story_reference(item)
-
-        updated = datetime.now(timezone.utc).isoformat()
-
         with LOCK:
-            NEWS_CACHE[key] = (
-                time.time(),
-                items,
-                updated
-            )
+            descriptions = {
+                item["id"]: (FEED_META.get(item["id"]) or {}).get("description", "")
+                for item in items
+            }
+        enrich_items(items, descriptions)
+    except Exception as exc:
+        app.logger.warning("RSS NLP enrichment unavailable: %s", type(exc).__name__)
 
-        return jsonify(
-            items=items,
-            updated=updated,
-            cached=False
-        )
-
-    except (requests.RequestException, ValueError) as exc:
-        app.logger.warning(
-            "RSS request failed: %s",
-            exc
-        )
-
-        with LOCK:
-            previous = NEWS_CACHE.get(key)
-
-        if previous:
-            items = previous[1]
-
-            for item in items:
-                if "story_ref" not in item:
-                    item["story_ref"] = story_reference(item)
-
-            return jsonify(
-                items=items,
-                updated=previous[2],
-                cached=True,
-                stale=True
-            )
-
-        return jsonify(
-            error="The news feed is temporarily unavailable. Please try again."
-        ), 502
+    for item in items:
+        item["story_ref"] = story_reference(item)
+    updated = datetime.now(timezone.utc).isoformat()
+    with LOCK:
+        NEWS_CACHE[key] = (time.time(), items, updated)
+    return jsonify(items=items, updated=updated, cached=False,
+                   sources_ok=ok, sources_total=attempted,
+                   search_scope="curated_feeds" if query else None)
 
 
 @app.get("/api/article/<article_id>")
@@ -1378,91 +1313,44 @@ def article(article_id):
 
 @app.get("/api/image/<article_id>")
 def article_image(article_id):
+    """Return a verified picture for the story, fetched by our backend.
+
+    Order: images supplied by the RSS item, then publisher page metadata (og:image, twitter:image,
+    JSON-LD). Many publishers forbid hotlinking and some pages cannot be resolved, so 404 is a
+    normal, cached answer; the browser then shows the category placeholder (never a logo).
+    """
     if not re.fullmatch(r"[0-9a-f]{20}", article_id):
         return "Invalid image id", 400
-
     restore_story(article_id)
-
+    headers = {"Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "default-src 'none'; sandbox"}
     with LOCK:
         known = KNOWN_URLS.get(article_id)
-
+        meta = FEED_META.get(article_id) or {}
     if not known:
         return "Story expired", 404
-
-    headers = {
-        "Cache-Control": "public, max-age=3600",
-        "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; sandbox"
-    }
+    if not meta.get("allow_images", False):
+        return "No permitted article image", 404, {"Cache-Control": "no-store"}
 
     def respond(entry):
         if entry["data"] is None:
-            return (
-                "No article image available",
-                404,
-                {"Cache-Control": "no-store"}
-            )
-        return Response(
-            entry["data"],
-            mimetype=entry["mime"],
-            headers=headers
-        )
+            return "No article image available", 404
+        return Response(entry["data"], mimetype=entry["mime"], headers=headers)
 
     cached = IMAGE_CACHE.get(article_id)
-    if cached is not None:
+    if cached:
         return respond(cached)
-
     with id_lock("image", article_id):
         cached = IMAGE_CACHE.get(article_id)
-        if cached is not None:
+        if cached:
             return respond(cached)
-
-        with LOCK:
-            rss_images = list(
-                (FEED_META.get(article_id) or {}).get("images") or []
-            )
-
-        app.logger.info(
-            "TBA IMAGE %s: RSS candidates=%d",
-            article_id,
-            len(rss_images)
-        )
-
-        found = first_valid_image(rss_images)
-
+        found = first_valid_image((FEED_META.get(article_id) or {}).get("images") or [])
         if not found:
             analysis = analyze_article(article_id)
-
-          
-
-            app.logger.warning(
-                "TBA IMAGE DIAG: id=%s status=%s "
-                "publisher=%s images=%d",
-                article_id,
-                analysis.get("status"),
-                analysis.get("publisher_url"),
-                len(analysis.get("images") or [])
-            )
-
             if analysis["status"] == "busy":
-                return "Server busy", 503
-
-            found = first_valid_image(
-                analysis.get("images") or []
-            )
-
-        entry = (
-            {"data": found[0], "mime": found[1]}
-            if found
-            else {"data": None, "mime": None}
-        )
-
-        IMAGE_CACHE.set(
-            article_id,
-            entry,
-            ttl=3600 if found else 120
-        )
-
+                return "Server busy", 503            # not cached: the browser may ask again later
+            found = first_valid_image(analysis.get("images") or [])
+        entry = {"data": found[0], "mime": found[1]} if found else {"data": None, "mime": None}
+        IMAGE_CACHE.set(article_id, entry, ttl=3600 if found else 1800)
         return respond(entry)
 
 
@@ -1504,6 +1392,8 @@ def recommendations(article_id):
         return jsonify(error="Story expired. Refresh the feed and try again."), 404
     by_id = {entry["id"]: entry["item"] for entry in pool}
     items = [{**by_id[r["id"]], "recommendation": {"score": r["score"], "reasons": r["reasons"], "fallback": r["fallback"]}} for r in result["items"]]
+    for item in items:
+        item["story_ref"] = story_reference(item)
     return jsonify(items=items, method=result["method"], fallback=result["fallback"], message=result["message"])
 
 

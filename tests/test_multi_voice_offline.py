@@ -32,6 +32,7 @@ scope = {
     'id_lock':lambda *args: nullcontext(),
     'FEMALE_AUDIO_CACHE':Cache(),
     'app':type('App',(),{'logger':logging.getLogger('voice-tests')})(),
+    'restore_story':lambda article_id: False,
     'avatar_narration':lambda i: FakeResponse({'language':'hi-IN','fallback':False,'text':'यह खबर पढ़ी जा रही है।'})
 }
 tree=ast.parse((ROOT/'app.py').read_text())

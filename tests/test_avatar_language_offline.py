@@ -30,6 +30,7 @@ SCOPE = {
     'LOCK': threading.RLock(),
     'KNOWN_URLS': {},
     'FEED_META': {},
+    'restore_story': lambda article_id: False,
     'app': types.SimpleNamespace(logger=logging.getLogger('test-avatar')),
     'jsonify': lambda *args, **kw: args[0] if args else kw,
 }

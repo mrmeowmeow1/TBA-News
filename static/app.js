@@ -58,7 +58,7 @@ else if (typeof s.score === 'number')
     parts.push(`lexicon polarity ${s.score > 0 ? '+' : ''}${s.score.toFixed(2)}`); return parts.join(' · '); }
 function sentimentPill(item) { const s = item.sentiment; if (!s || !s.available || !s.label)
     return null; const pill = el('span', `sent-pill sent-${s.label.toLowerCase()}`, s.label); pill.title = `Headline tone: ${sentimentText(s)}. ${s.note || 'Describes the wording, not whether the news is good or bad.'}`; return pill; }
-function card(item) { const card = el('article', 'news-card'); const visual = el('div', `card-visual visual-${item.category}`); const fallback = () => { visual.replaceChildren(el('span', 'card-glyph', icons[item.category] || '◈'), el('span', 'visual-caption', 'TBA / DAILY EDIT')); }; fallback(); if  (item.id && item.image) {
+function card(item) { const card = el('article', 'news-card'); const visual = el('div', `card-visual visual-${item.category}`); const fallback = () => { visual.replaceChildren(el('span', 'card-glyph', icons[item.category] || '◈'), el('span', 'visual-caption', 'TBA / DAILY EDIT')); }; fallback(); if (item.id && item.image) {
     const img = el('img');
     img.alt = 'Article image';
     img.loading = 'lazy';
@@ -68,7 +68,7 @@ function card(item) { const card = el('article', 'news-card'); const visual = el
     img.src = window.tbaStoryUrl('/api/image/' + encodeURIComponent(item.id), item);
     visual.append(img);
 } const body = el('div', 'card-body'); const top = el('div', 'card-top'); const tag = el('span', 'category-tag', topicLabel(item)); tag.title = item.topic && item.topic.label && item.topic.label !== 'General' ? 'Topic detected from the headline by keyword similarity' : ''; const meta = el('div', 'card-meta'); const pill = sentimentPill(item); if (pill)
-    meta.append(pill); meta.append(el('span', 'card-time', age(item.published))); top.append(tag, meta); const heading = el('h3', '', item.title); const description = el('p', 'description', item.description || 'Read the story and view its original source.'); const bottom = el('div', 'card-bottom'); const source = el('span', 'source', item.source || 'News source'); source.title = item.source || ''; if (item.story && item.story.size > 1) {
+    meta.append(pill); meta.append(el('span', 'card-time', age(item.published))); top.append(tag, meta); const heading = el('h3', '', item.title); const description = el('p', 'description', item.description || 'Read the story and view its original source.'); const bottom = el('div', 'card-bottom'); const source = el('a', 'source', item.source || 'News source'); source.title = item.source || ''; source.href = item.url; source.target = '_blank'; source.rel = 'noopener noreferrer'; if (item.story && item.story.size > 1) {
     const more = item.story.size - 1;
     source.append(' ', el('b', 'group-count', `+${more} source${more > 1 ? 's' : ''}`));
     source.title = `${item.source || 'News source'} — ${more} other publisher${more > 1 ? 's' : ''} cover this story`;
@@ -117,7 +117,7 @@ const articleCache = new Map(), inflight = new Map();
 const LABELS = { loading: 'LOADING…', ai: 'AI SUMMARY', ai_partial: 'PARTIAL AI SUMMARY', article: 'ARTICLE SUMMARY', partial: 'PARTIAL ARTICLE SUMMARY', description: 'PUBLISHER DESCRIPTION', unavailable: 'ARTICLE UNAVAILABLE', error: 'COULD NOT LOAD' };
 function setLabel(type) { $('#summaryLabel').textContent = LABELS[type] || LABELS.article; }
 function setNote(text) { const note = $('#modalNote'); note.textContent = text || ''; note.hidden = !text; }
-function showModalImage(item) { const fig = $('#modalFigure'), img = $('#modalImage'); fig.hidden = true; img.onload = () => { if (state.selected?.id === item.id)
+function showModalImage(item) { const fig = $('#modalFigure'), img = $('#modalImage'); fig.hidden = true; if (!item.image) { img.removeAttribute('src'); return; } img.onload = () => { if (state.selected?.id === item.id)
     fig.hidden = false; }; img.onerror = () => { img.onerror = null; fig.hidden = true; img.removeAttribute('src'); }; img.src = window.tbaStoryUrl('/api/image/' + encodeURIComponent(item.id), item); }
 function renderLoading() { const box = $('#modalSummary'); box.setAttribute('aria-busy', 'true'); setLabel('loading'); setNote(''); const row = el('div', 'qr-loading'); row.setAttribute('role', 'status'); row.append(el('span', 'qr-spinner'), el('span', '', 'Reading the article and preparing an overview…')); box.replaceChildren(row); }
 function retryButton(item, text) { const b = el('button', 'outline-btn qr-retry', text || '↻ Try again'); b.type = 'button'; b.addEventListener('click', () => loadOverview(item, true)); return b; }
