@@ -1376,10 +1376,14 @@ def article_image(article_id):
         if not found:
             analysis = analyze_article(article_id)
 
-            app.logger.info(
-                "TBA IMAGE %s: publisher status=%s, images=%d",
+          
+
+            app.logger.warning(
+                "TBA IMAGE DIAG: id=%s status=%s "
+                "publisher=%s images=%d",
                 article_id,
                 analysis.get("status"),
+                analysis.get("publisher_url"),
                 len(analysis.get("images") or [])
             )
 
