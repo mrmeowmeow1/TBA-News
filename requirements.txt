@@ -22,3 +22,5 @@ python-dotenv>=1.0,<2
 
 # Production WSGI web server for Render
 gunicorn>=22,<24
+
+gnews-decoder==0.1.1

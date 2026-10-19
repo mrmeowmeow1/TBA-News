@@ -39,7 +39,7 @@ from bs4 import BeautifulSoup
 from flask import Flask, jsonify, render_template, request, Response
 from PIL import Image, UnidentifiedImageError
 from dotenv import load_dotenv
-
+from gnews_decoder import decode as decode_google_news
 from itsdangerous import URLSafeSerializer, BadSignature
 
 # Load local settings before importing services or reading environment variables.
@@ -103,6 +103,7 @@ _ID_LOCKS = {}
 LOCK = threading.RLock()
 ANALYSIS_SLOTS = threading.BoundedSemaphore(6)   # simultaneous publisher-page analyses
 GOOGLE_SLOTS = threading.BoundedSemaphore(2)     # simultaneous Google link-resolution calls
+
 
 STOPWORDS = set("the a an and or but at on in of to for from by with is are was were it its this that as be been will would can could should has have had not their they you your we our into than after before about over under across says said also who what when where why how just new more most many some news amid according during all if up out he she his her them us do did so".split())
 
@@ -607,21 +608,62 @@ def decode_google_token_online(token):
         GOOGLE_SLOTS.release()
 
 
+
 def resolve_google_url(link):
-    """Publisher URL for a Google News article link, or None. Results (and failures) are cached."""
     token = google_token(link)
+
     if not token:
         return None
+
     cached = RESOLVE_CACHE.get(token)
+
     if cached is not None:
         return cached or None
-    url = decode_google_token_offline(token) or decode_google_token_online(token)
-    if url and (urlparse(url).hostname or "").lower() in GOOGLE_HOSTS:
-        url = None
+
+    # First try legacy offline decoding.
+    url = decode_google_token_offline(token)
+
+    if not url and RESOLVE_GOOGLE_LINKS:
+        # Try the updated Google News decoder.
+        try:
+            url = decode_google_news(
+                link,
+                timeout=12.0
+            )
+        except Exception as exc:
+            app.logger.warning(
+                "TBA Google decoder failed: %s",
+                type(exc).__name__
+            )
+
+        # Retain TBA's existing resolver as fallback.
+        if not url:
+            url = decode_google_token_online(token)
+
     if url and url.startswith("http://"):
         url = "https://" + url[7:]
-    RESOLVE_CACHE.set(token, url or "", ttl=86400 if url else 600)
+
+    # Only accept public HTTPS publisher URLs.
+    if (
+        not url
+        or _hostname(url) in GOOGLE_HOSTS
+        or not safe_public_url(url)
+    ):
+        url = None
+
+    app.logger.info(
+        "TBA Google News resolution: %s",
+        "success" if url else "unresolved"
+    )
+
+    RESOLVE_CACHE.set(
+        token,
+        url or "",
+        ttl=86400 if url else 120
+    )
+
     return url
+
 
 
 # ---------------------------------------------------------------------------------------------
