@@ -4,11 +4,10 @@ Pipeline overview
 -----------------
 1. ``/api/news`` fetches curated direct publisher RSS feeds and returns cards.  Image hints and the full RSS
    description are remembered server-side (``FEED_META``).
-2. Google News links are encoded redirect pages.  ``resolve_google_url`` turns them into the
-   publisher URL (offline for legacy tokens, via Google's own redirect service otherwise).
-3. ``analyze_article`` fetches the publisher page once (SSRF-safe, robots.txt aware, bounded,
+2. RSS entries contain direct publisher URLs; Google News decoding is not used by the feed collector.
+3. ``analyze_article`` optionally fetches an allowed publisher page once (SSRF-safe, robots.txt aware, bounded,
    cached) and extracts article text, description metadata and image candidates.
-4. ``/api/image/<id>`` and ``/api/article/<id>`` both read that shared analysis.
+4. ``/api/article/<id>`` uses that analysis on demand; card images only use explicitly permitted sources.
 5. ``services/`` holds the AI/ML layer (sentiment, topic, duplicate grouping, recommendations and the
    optional AI summary); see docs/AI_ML.md.  ``/api/news`` enriches each feed once and caches it.
 """
@@ -57,6 +56,7 @@ from services.rss_sources import allowed_sources
 
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 STORY_SIGNING_KEY = os.environ["TBA_STORY_SIGNING_KEY"]
 
@@ -421,8 +421,7 @@ def image_candidates_from_entry(entry, base_url=""):
             raw.append(link.get("href"))
     markup = [c.get("value", "") for c in (entry.get("content") or []) if isinstance(c, dict)] + [entry.get("summary", "")]
     for html in markup:
-        tag = BeautifulSoup(html or "", "html.parser").find("img", src=True)
-        if tag:
+        for tag in BeautifulSoup(html or "", "html.parser").find_all("img", src=True)[:8]:
             raw.append(tag["src"])
     seen, result = set(), []
     for url in raw:
@@ -1130,9 +1129,9 @@ def prepare_image(raw):
     try:
         with Image.open(BytesIO(raw)) as picture:
             width, height = picture.size
-            # Logos/icons often have tiny or square dimensions. News photos
-            # should have meaningful resolution and a landscape aspect.
-            if width < 360 or height < 180 or not 1.15 <= width / height <= 3.5:
+            # Accept medium-size/portrait RSS thumbnails while excluding tiny icons.
+            # The page crops pictures into landscape cards.
+            if width < 220 or height < 120 or not 0.55 <= width / height <= 4.0:
                 return None
             if width <= 1000 or getattr(picture, "n_frames", 1) > 1:
                 return raw, detected
@@ -1168,21 +1167,31 @@ def first_valid_image(urls, max_tries=4):
 # entirely out of the initial feed request path.
 # ---------------------------------------------------------------------------------------------
 RSS_RAW_CACHE = TTLCache(max_items=60, ttl=900)
+RSS_FAILURE_CACHE = TTLCache(max_items=60, ttl=180)
 RSS_FEED_LIMIT = 50  # maximum articles returned per category (when available)
 
 
 def fetch_direct_source(source, category, force=False):
-    """Fetch one curated RSS feed with bounded I/O and a 15-minute byte cache."""
+    """Fetch one feed with bounded I/O, caching, and short failure cooldown."""
     cache_key = source.url
     raw = None if force else RSS_RAW_CACHE.get(cache_key)
     if raw is None:
+        if RSS_FAILURE_CACHE.get(cache_key):
+            raise ValueError("Feed temporarily unavailable (retry cooldown)")
         with id_lock("rss", cache_key):
             raw = None if force else RSS_RAW_CACHE.get(cache_key)
             if raw is None:
-                raw, _ = safe_get(cache_key, timeout=5, limit=1_500_000)
+                if RSS_FAILURE_CACHE.get(cache_key):
+                    raise ValueError("Feed temporarily unavailable (retry cooldown)")
+                try:
+                    raw, _ = safe_get(cache_key, timeout=5, limit=1_500_000)
+                except (requests.RequestException, ValueError, OSError) as exc:
+                    RSS_FAILURE_CACHE.set(cache_key, True, ttl=180)
+                    app.logger.warning("RSS source unavailable (%s): %s", source.name, exc)
+                    raise
                 RSS_RAW_CACHE.set(cache_key, raw, ttl=900)
+                RSS_FAILURE_CACHE.pop(cache_key)
     return parse_feed(raw, category, feed_source=source)
-
 
 def collect_direct_news(category, query="", force=False):
     """Bounded parallel fetch. A bad publisher cannot hide successful feeds."""
@@ -1202,7 +1211,8 @@ def collect_direct_news(category, query="", force=False):
                 successes += 1
                 gathered.extend(stories)
             except (requests.RequestException, ValueError, OSError) as exc:
-                app.logger.warning("RSS %s unavailable: %s", source.name, type(exc).__name__)
+                if "retry cooldown" not in str(exc):
+                    app.logger.info("RSS %s skipped for this request (%s)", source.name, type(exc).__name__)
 
     # Search is bounded to curated feed content, not an Internet-wide search.
     if query:
@@ -1343,11 +1353,14 @@ def article_image(article_id):
         cached = IMAGE_CACHE.get(article_id)
         if cached:
             return respond(cached)
-        found = first_valid_image((FEED_META.get(article_id) or {}).get("images") or [])
-        if not found:
+        found = first_valid_image(meta.get("images") or [])
+        # No automatic publisher-page lookup for a missing feed image by default.
+        # This protects the Render worker from multiple slow page fetches.
+        if (not found and meta.get("allow_article_fetch", False)
+                and os.environ.get("TBA_IMAGE_PUBLISHER_FALLBACK", "0") == "1"):
             analysis = analyze_article(article_id)
             if analysis["status"] == "busy":
-                return "Server busy", 503            # not cached: the browser may ask again later
+                return "Server busy", 503
             found = first_valid_image(analysis.get("images") or [])
         entry = {"data": found[0], "mime": found[1]} if found else {"data": None, "mime": None}
         IMAGE_CACHE.set(article_id, entry, ttl=3600 if found else 1800)
@@ -1377,6 +1390,7 @@ def recommendations(article_id):
     """
     if not re.fullmatch(r"[0-9a-f]{20}", article_id):
         return jsonify(error="Invalid article identifier"), 400
+    restore_story(article_id)
     saved = []
     if request.method == "POST":
         body = request.get_json(silent=True)
@@ -1407,7 +1421,7 @@ def health():
 @app.post("/api/avatar/narration/<article_id>")
 @app.post("/api/avatar/hindi/<article_id>")  # backward compatibility with the previous avatar UI
 def avatar_narration(article_id):
-    """Narrate the selected news story in English or translated Hindi.
+    """Narrate the selected news story in English or translated Hindi or Marathi.
 
     English never invokes external translation. Missing publisher text receives an explicitly
     labelled headline-only briefing, rather than a fabricated overview or HTTP 422.
@@ -1427,8 +1441,8 @@ def avatar_narration(article_id):
     # The old endpoint must default to Hindi for older installed frontends.
     default_language = "hi" if request.path.startswith("/api/avatar/hindi/") else "en"
     requested = str(body.get("language", default_language)).strip().lower()
-    if requested not in ("en", "hi"):
-        return jsonify(error="Choose English (en) or Hindi (hi)."), 400
+    if requested not in ("en", "hi", "mr"):
+        return jsonify(error="Choose English (en), Hindi (hi), or Marathi (mr)."), 400
 
     title = str(metadata.get("title") or "").strip()
     publisher = str(metadata.get("source") or "").strip()
@@ -1469,8 +1483,12 @@ def avatar_narration(article_id):
         return jsonify(**response_base, text=english, hindi=english, language="en-IN",
                        fallback=False, translation="not_required")
 
-    # Hindi is opt-in. An English briefing never makes a translation HTTP request.
-    cache_key = (article_id, hashlib.sha256(english.encode("utf-8")).hexdigest()[:16])
+    # Local-language narration is opt-in. English never makes a translation request.
+    language_name, google_target, memory_target = {
+        "hi": ("Hindi", "hi", "hindi"),
+        "mr": ("Marathi", "mr", "marathi"),
+    }[requested]
+    cache_key = (requested, article_id, hashlib.sha256(english.encode("utf-8")).hexdigest()[:16])
     cached = HINDI_CACHE.get(cache_key)
     if cached:
         return jsonify(cached)
@@ -1484,17 +1502,14 @@ def avatar_narration(article_id):
 
         try:
             from deep_translator import GoogleTranslator, MyMemoryTranslator
+            # Google accepts longer requests; MyMemory uses language names and regional codes.
             providers = (
-                # Google accepts a longer text in one request. Sending each sentence
-                # separately caused avoidable 429s and wasted the free allowance.
-                ("Google", lambda: GoogleTranslator(source="en", target="hi"), 2800, 2800),
-                # deep-translator's MyMemory LANGUAGE TABLE does not accept the bare 'en'
-                # and 'hi' values; names map to its regional codes (e.g. en-GB/hi-IN).
-                ("MyMemory", lambda: MyMemoryTranslator(source="english", target="hindi"), 400, 1200),
+                ("Google", lambda: GoogleTranslator(source="en", target=google_target), 2800, 2800),
+                ("MyMemory", lambda: MyMemoryTranslator(source="english", target=memory_target), 400, 1200),
             )
         except ImportError:
             providers = ()
-            app.logger.warning("Hindi translation unavailable: deep-translator is not installed")
+            app.logger.warning("%s translation unavailable: deep-translator is not installed", language_name)
 
         attempted = False
         for provider_name, create, chunk_limit, total_limit in providers:
@@ -1527,19 +1542,20 @@ def avatar_narration(article_id):
                         continue
                     translation = translator.translate(chunk)
                     if not translation or not re.search(r"[\u0900-\u097f]", translation):
-                        raise ValueError("Provider did not return text in Hindi script")
+                        raise ValueError("Provider did not return text in Devanagari script")
                     pieces.append(translation)
 
-                hindi_text = " ".join(pieces).strip()
-                if not hindi_text:
-                    raise ValueError("Empty Hindi narration")
+                translated_text = " ".join(pieces).strip()
+                if not translated_text:
+                    raise ValueError(f"Empty {language_name} narration")
                 provider_notice = notice
                 if len(portion) < len(english):
-                    provider_notice += " Hindi narration covers only the opening part of the available overview."
-                answer = dict(response_base, text=hindi_text, hindi=hindi_text,
-                              language="hi-IN", fallback=False,
+                    provider_notice += f" {language_name} narration covers only the opening part of the available overview."
+                answer = dict(response_base, text=translated_text,
+                              language=f"{requested}-IN", fallback=False,
                               translation="automatic", translation_provider=provider_name,
                               notice=provider_notice)
+                answer["hindi" if requested == "hi" else "marathi"] = translated_text
                 HINDI_CACHE.set(cache_key, answer, ttl=3600)
                 return jsonify(answer)
             except Exception as exc:
@@ -1560,8 +1576,10 @@ def avatar_narration(article_id):
         # fallback rather than assuming every successful response is a Hindi translation.
         english_fallback = dict(response_base, text=english, hindi=english,
                                 language="en-IN", fallback=True, translation="unavailable")
+        if requested == "mr":
+            english_fallback["marathi"] = english
         english_fallback["notice"] = (
-            "Hindi translation is temporarily unavailable. Playing the original English briefing. " + notice
+            f"{language_name} translation is temporarily unavailable. Playing the original English briefing. " + notice
         )
         # Cache failures briefly to prevent repeated external requests from the same story.
         HINDI_CACHE.set(cache_key, english_fallback, ttl=120)

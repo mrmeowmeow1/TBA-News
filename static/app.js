@@ -79,8 +79,12 @@ function showNotice(msg) { els.notice.textContent = msg; els.notice.hidden = !ms
 async function fetchStories(force = false) { state.saved = false; state.visible = 9; state.requestId++; const current = state.requestId; if (state.controller)
     state.controller.abort(); state.controller = new AbortController(); state.loading = true; skeleton(); showNotice(''); const qs = new URLSearchParams({ category: state.category }); if (state.query)
     qs.set('q', state.query); if (force)
-    qs.set('refresh', '1'); try {
-    const res = await fetch('/api/news?' + qs, { signal: state.controller.signal });
+    qs.set('refresh', '1');
+    const controller = state.controller;
+    let requestTimedOut = false;
+    const timer = setTimeout(() => { requestTimedOut = true; controller.abort(); }, 20000);
+    try {
+    const res = await fetch('/api/news?' + qs, { signal: controller.signal });
     const data = await res.json();
     if (!res.ok)
         throw Error(data.error || 'Unable to fetch news.');
@@ -92,13 +96,16 @@ async function fetchStories(force = false) { state.saved = false; state.visible 
     render();
 }
 catch (e) {
-    if (e.name === 'AbortError' || current !== state.requestId)
+    if (current !== state.requestId)
+        return;
+    if (e.name === 'AbortError' && !requestTimedOut)
         return;
     state.items = [];
     render();
-    showNotice(e.message + ' Please use Refresh to try again.');
+    showNotice(requestTimedOut ? 'News request timed out. Please use Refresh to retry.' : e.message + ' Please use Refresh to try again.');
 }
 finally {
+    clearTimeout(timer);
     if (current === state.requestId)
         state.loading = false;
 } }
@@ -219,7 +226,7 @@ function loadRelated(item) {
         return;
     }
     const saved = Object.values(bookmarks).filter(b => b && b.id !== item.id && typeof b.title === 'string').map(b => b.title).slice(0, 10);
-    fetch('/api/recommendations/' + encodeURIComponent(item.id), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ saved_titles: saved }) }).then(r => r.ok ? r.json() : null).then(data => { if (data) {
+    fetch(window.tbaStoryUrl('/api/recommendations/' + encodeURIComponent(item.id), item), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ saved_titles: saved }) }).then(r => r.ok ? r.json() : null).then(data => { if (data) {
         relatedCache.set(item.id, data);
     } done(data); }).catch(() => { });
 }

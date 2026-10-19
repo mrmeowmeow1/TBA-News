@@ -10,7 +10,7 @@
     let generation = 0, voiceGeneration = 0, lastFocus = null, pending = null, audioPending = null;
     let player = null, playerUrl = null, playerKey = null, pendingSample = false;
     let context = null, analyser = null, mediaSource = null, raf = 0;
-    const voicesAvailable = { piper: false, 'piper-rohan': false, parler: false, 'edge-swara': false, 'edge-madhur': false };
+    const voicesAvailable = { 'edge-swara': false, 'edge-madhur': false };
     // Interactive gaze stays entirely in the browser. No camera, tracking API,
     // uploaded cursor data, extra package or server endpoint is necessary.
     function createGazeController() {
@@ -197,27 +197,35 @@
         active = null;
         lastFocus?.focus?.();
     }
-    const isHindi = () => narrationLang.toLowerCase().startsWith('hi');
+    const actualLanguage = () => {
+        const code = narrationLang.toLowerCase().split('-')[0];
+        return ['en', 'hi', 'mr'].includes(code) ? code : 'en';
+    };
+    const selectedLanguage = () => ['en', 'hi', 'mr'].includes(languageSelect?.value) ? languageSelect.value : 'en';
+    const languageName = code => ({ en: 'English', hi: 'Hindi', mr: 'Marathi' }[code] || 'English');
+    const isHindi = () => actualLanguage() === 'hi';
+    const isMarathi = () => actualLanguage() === 'mr';
     const currentProvider = () => voiceSelect?.value || 'edge-swara';
     function browserVoice() {
         const all = speech?.getVoices?.() || [];
         const lang = narrationLang.toLowerCase();
         const relevant = all.filter(v => v.lang && v.lang.toLowerCase().startsWith(lang.split('-')[0]));
-        if (isHindi()) {
+        if (isHindi() || isMarathi()) {
             // Web Speech has no standardized gender field. These named-voice hints
             // are a best effort; never silently select an unidentified male voice.
-            return relevant.find(v => /priyamvada|swara|female|kalpana|lekha|heera|neerja|geeta|veena|kavya|rani|divya/i.test(v.name || '')) || null;
+            const femaleHint = relevant.find(v => /priyamvada|swara|female|kalpana|lekha|heera|neerja|geeta|veena|kavya|rani|divya|aarohi/i.test(v.name || ''));
+            return femaleHint || (isMarathi() ? relevant[0] || null : null);
         }
         return relevant.find(v => v.lang.toLowerCase() === lang) || relevant[0] || null;
     }
     function playBrowser() {
         if (!speech || typeof SpeechSynthesisUtterance === 'undefined') {
-            status('This browser cannot synthesize speech. Install Piper for local Hindi narration.', '● Voice unavailable');
+            status('This browser cannot synthesize speech. Try an online narrator if available.', '● Voice unavailable');
             return;
         }
         const selectedVoice = browserVoice();
-        if (isHindi() && !selectedVoice) {
-            status('No suitable Hindi system voice found. Select Swara or Madhur for neural narration.', '● Voice unavailable');
+        if ((isHindi() || isMarathi()) && !selectedVoice) {
+            status(`No suitable ${languageName(actualLanguage())} system voice found. Select an online narrator.`, '● Voice unavailable');
             return;
         }
         stop();
@@ -231,7 +239,7 @@
             if (utterance !== current)
                 return;
             stage.classList.add('is-speaking');
-            status((isHindi() ? 'Speaking in Hindi' : 'Speaking in English') + ' using your system voice.', '● Speaking');
+            status(`Speaking in ${languageName(actualLanguage())} using your system voice.`, '● Speaking');
             get('avatarPause').disabled = false;
             get('avatarStop').disabled = false;
         };
@@ -292,20 +300,14 @@
             promise.catch(() => status('Browser blocked audio playback. Click Play again.', '● Audio blocked'));
     }
     // The selected provider and ACTUAL narration language always determine the audio.
-    // During a translation outage the actual language is English, not Hindi.
+    // During a translation outage the actual language is English, not the requested locale.
     async function playNeural(sample = false) {
         if (!active || (!sample && !transcript))
             return;
         const provider = currentProvider();
-        const language = isHindi() ? 'hi' : 'en';
+        const language = actualLanguage();
         if (!voicesAvailable[provider]) {
-            status(provider.startsWith('edge-')
-                ? 'Online narrator unavailable. Install edge-tts and restart Flask.'
-                : 'Selected local voice is not installed. See docs/VOICES_AND_SHARING.md.', '● Setup required');
-            return;
-        }
-        if (language === 'en' && !provider.startsWith('edge-')) {
-            status('This offline narrator supports Hindi only. Choose Swara or Madhur for the English version.', '● Select online voice');
+            status('Online narrator is unavailable. Use the browser voice or retry later.', '● Narrator unavailable');
             return;
         }
         const key = sample ? `sample:${language}:${provider}` : `${active.id}:${language}:${provider}:${transcript}`;
@@ -321,10 +323,12 @@
         audioPending = controller;
         pendingSample = sample;
         get('avatarPlay').disabled = true;
-        status(sample ? `Generating ${language === 'hi' ? 'Hindi' : 'English'} voice preview…`
-            : `Generating ${language === 'hi' ? 'Hindi' : 'English'} news narration…`, '● Generating');
+        status(sample ? `Generating ${languageName(language)} voice preview…`
+            : `Generating ${languageName(language)} news narration…`, '● Generating');
         try {
-            const response = await fetch(sample ? '/api/avatar/voice/sample' : '/api/avatar/voice/' + encodeURIComponent(active.id), {
+            const voicePath = sample ? '/api/avatar/voice/sample' : '/api/avatar/voice/' + encodeURIComponent(active.id);
+            const verifiedVoicePath = !sample && window.tbaStoryUrl ? window.tbaStoryUrl(voicePath, active) : voicePath;
+            const response = await fetch(verifiedVoicePath, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 cache: 'no-store', body: JSON.stringify({ language, provider }), signal: controller.signal
             });
@@ -340,7 +344,7 @@
                 throw Error('Voice language mismatch; please retry.');
             const blob = await response.blob();
             if (articleTicket !== generation || voiceTicket !== voiceGeneration ||
-                provider !== currentProvider() || language !== (isHindi() ? 'hi' : 'en'))
+                provider !== currentProvider() || language !== actualLanguage())
                 return;
             playerUrl = URL.createObjectURL(blob);
             player = new Audio(playerUrl);
@@ -351,13 +355,13 @@
             if (shortened && !sample)
                 get('avatarSourceKind').textContent += ' The audio reads only the opening section of the available text.';
             const voiceLabel = provider === 'edge-swara'
-                ? (language === 'hi' ? 'Swara (female, Hindi)' : 'Neerja (female, English)')
+                ? ({ hi: 'Swara (female, Hindi)', mr: 'Aarohi (female, Marathi)', en: 'Neerja (female, English)' }[language])
                 : provider === 'edge-madhur'
-                    ? (language === 'hi' ? 'Madhur (male, Hindi)' : 'Prabhat (male, English)')
+                    ? ({ hi: 'Madhur (male, Hindi)', mr: 'Manohar (male, Marathi)', en: 'Prabhat (male, English)' }[language])
                     : (voiceSelect?.selectedOptions?.[0]?.textContent?.split(' · ')[0] || provider);
             player.onplay = () => {
                 stage.classList.add('is-speaking', 'neural-talking');
-                status(`Playing ${language === 'hi' ? 'Hindi' : 'English'} narration with ${voiceLabel}.`, '● Speaking');
+                status(`Playing ${languageName(language)} narration with ${voiceLabel}.`, '● Speaking');
                 get('avatarPause').disabled = false;
                 get('avatarStop').disabled = false;
                 if (context?.state === 'suspended')
@@ -397,7 +401,7 @@
             playBrowser();
     }
     function updateVoiceUI() {
-        const enabled = true; // Also allow English male/female when Hindi translation fails.
+        const enabled = true; // Preserve narrator choice if Hindi/Marathi translation falls back to English.
         const row = get('avatarVoiceRow');
         if (row)
             row.hidden = false;
@@ -405,17 +409,13 @@
             const help = get('avatarVoiceHelp');
             const selected = currentProvider();
             if (selected === 'browser')
-                help.textContent = 'Uses a Hindi system voice, if available in your browser.';
+                help.textContent = 'Uses an English, Hindi, or Marathi system voice available in your browser.';
             else if (voicesAvailable[selected])
-                help.textContent = selected.startsWith('edge-')
-                    ? (isHindi()
-                        ? 'Hindi neural narrator available. Audio generation sends the Hindi script to Microsoft.'
-                        : 'English neural narrator available: Neerja (female) or Prabhat (male). No translation needed.')
-                    : (isHindi() ? 'Local Hindi narrator installed.' : 'Local voice is Hindi-only. Select Swara or Madhur for English.');
+                help.textContent = selectedLanguage() === 'en'
+                    ? 'Online English narrator available. No translation is needed.'
+                    : `Online ${languageName(selectedLanguage())} narrator. Translation may use a third-party provider; the text is sent to Microsoft for speech.`;
             else
-                help.textContent = selected.startsWith('edge-')
-                    ? 'Install the online client: python -m pip install edge-tts (internet required).'
-                    : 'Local model not installed. See docs/VOICES_AND_SHARING.md.';
+                help.textContent = 'Online narrator is currently unavailable; browser speech remains available.';
         }
     }
     async function checkProviders() {
@@ -443,13 +443,17 @@
         get('avatarPlay').disabled = true;
         const desired = languageSelect.value;
         updateVoiceUI();
-        get('avatarTranscript').lang = desired === 'hi' ? 'hi' : 'en';
+        get('avatarTranscript').lang = desired;
         get('avatarTranscript').textContent = desired === 'hi'
-            ? 'हिंदी में समाचार तैयार हो रहा है…' : 'Preparing your English news briefing…';
+            ? 'हिंदी में समाचार तैयार हो रहा है…'
+            : desired === 'mr' ? 'मराठीत बातम्या तयार होत आहेत…' : 'Preparing your English news briefing…';
         get('avatarSourceKind').hidden = true;
-        status(desired === 'hi' ? 'Preparing news and Hindi translation…' : 'Retrieving available news information…', '● Preparing');
+        status(desired === 'en'
+            ? 'Retrieving available news information…'
+            : `Preparing news and ${languageName(desired)} translation…`, '● Preparing');
         try {
-            const res = await fetch('/api/avatar/narration/' + encodeURIComponent(active.id), {
+            const narrationPath = '/api/avatar/narration/' + encodeURIComponent(active.id);
+            const res = await fetch(window.tbaStoryUrl ? window.tbaStoryUrl(narrationPath, active) : narrationPath, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ language: desired }), signal: pending.signal
             });
@@ -460,20 +464,19 @@
                 throw Error(data.error || 'Could not prepare briefing');
             transcript = data.text || '';
             narrationLang = data.language || 'en-IN';
-            get('avatarTranscript').lang = isHindi() ? 'hi' : 'en';
+            get('avatarTranscript').lang = actualLanguage();
             get('avatarTranscript').textContent = transcript;
             get('avatarPlay').disabled = !transcript;
             const notice = get('avatarSourceKind');
             notice.hidden = false;
             notice.textContent = data.notice || 'Based on available publisher text.';
-            const fallback = desired === 'hi' && !isHindi();
+            const fallback = desired !== 'en' && actualLanguage() !== desired;
             status(fallback
-                ? 'Hindi translation unavailable. English briefing ready; Swara/Madhur will use English female/male voices.'
-                : (isHindi() ? 'Hindi briefing ready. Select a narrator and press Play.'
-                    : 'English briefing ready. Select a narrator and press Play.'), '● Ready');
+                ? `${languageName(desired)} translation unavailable. English briefing ready; the selected narrator will speak English.`
+                : `${languageName(desired)} briefing ready. Select a narrator and press Play.`, '● Ready');
             updateVoiceUI();
-            // If translation failed the backend gave an English script, never try to
-            // read that with Hindi neural voice.
+            // If translation failed the backend gave an English script, never request
+            // Hindi or Marathi speech for it.
         }
         catch (err) {
             if (ticket !== generation && err.name === 'AbortError')
@@ -505,7 +508,7 @@
     get('avatarPlay').addEventListener('click', play);
     get('avatarVoiceSample')?.addEventListener('click', () => {
         if (currentProvider() === 'browser') {
-            status('Choose a neural voice in the narrator menu to preview it.', '● Select neural voice');
+            status('Choose an online narrator in the menu to preview it.', '● Select online narrator');
             return;
         }
         playNeural(true);
@@ -541,7 +544,6 @@
     });
     languageSelect.addEventListener('change', prepare);
     voiceSelect?.addEventListener('change', () => {
-        // Never wait for Flask restart or keep playing an old generated MP3.
         // Abort the previous request, discard its result, and immediately start
         // the newly selected voice if there is a prepared article or sample.
         const wasPlaying = !!(player && !player.paused) || !!(utterance && speech?.speaking);

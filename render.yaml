@@ -1,10 +1,10 @@
-# Render Blueprint: deploy from a GitHub repository containing the TBA directory contents.
+# Create a Render Blueprint using this file, or copy these settings into your existing service.
 services:
   - type: web
     name: tba-news
     runtime: python
     plan: free
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 --access-logfile - --error-logfile - app:app
     healthCheckPath: /api/health
     envVars:
@@ -17,4 +17,10 @@ services:
       - key: TBA_ENABLE_PARLER
         value: "0"
       - key: TBA_RESOLVE_GOOGLE_LINKS
-        value: "1"
+        value: "0"
+      - key: TBA_INCLUDE_RESTRICTED_FEEDS
+        value: "0"
+      - key: TBA_IMAGE_PUBLISHER_FALLBACK
+        value: "0"
+      - key: TBA_STORY_SIGNING_KEY
+        generateValue: true
