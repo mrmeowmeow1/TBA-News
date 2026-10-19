@@ -58,7 +58,7 @@ else if (typeof s.score === 'number')
     parts.push(`lexicon polarity ${s.score > 0 ? '+' : ''}${s.score.toFixed(2)}`); return parts.join(' · '); }
 function sentimentPill(item) { const s = item.sentiment; if (!s || !s.available || !s.label)
     return null; const pill = el('span', `sent-pill sent-${s.label.toLowerCase()}`, s.label); pill.title = `Headline tone: ${sentimentText(s)}. ${s.note || 'Describes the wording, not whether the news is good or bad.'}`; return pill; }
-function card(item) { const card = el('article', 'news-card'); const visual = el('div', `card-visual visual-${item.category}`); const fallback = () => { visual.replaceChildren(el('span', 'card-glyph', icons[item.category] || '◈'), el('span', 'visual-caption', 'TBA / DAILY EDIT')); }; fallback(); if (item.id) {
+function card(item) { const card = el('article', 'news-card'); const visual = el('div', `card-visual visual-${item.category}`); const fallback = () => { visual.replaceChildren(el('span', 'card-glyph', icons[item.category] || '◈'), el('span', 'visual-caption', 'TBA / DAILY EDIT')); }; fallback(); if  (item.id && item.image) {
     const img = el('img');
     img.alt = 'Article image';
     img.loading = 'lazy';

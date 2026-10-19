@@ -337,8 +337,8 @@ def normalized_date(entry):
     return None
 
 
+
 def feed_url(category, query):
-    # Keep Google News search functionality.
     if query:
         return (
             f"{RSS_ROOT}/search?"
@@ -346,19 +346,18 @@ def feed_url(category, query):
             "&hl=en-IN&gl=IN&ceid=IN:en"
         )
 
-    # Temporary diagnostic: a direct publisher RSS feed.
     if category == "top":
-        return "https://feeds.bbci.co.uk/news/rss.xml"
-
-    # Keep the original Google News categories.
-    if category == "top":
-        return f"{RSS_ROOT}?hl=en-IN&gl=IN&ceid=IN:en"
+        return (
+            f"{RSS_ROOT}?"
+            "hl=en-IN&gl=IN&ceid=IN:en"
+        )
 
     return (
         f"{RSS_ROOT}/headlines/section/topic/"
         f"{CATEGORIES[category]}"
         "?hl=en-IN&gl=IN&ceid=IN:en"
     )
+
 
 
 def is_branding_image(url):
@@ -482,7 +481,7 @@ def parse_feed(content, category):
     feed = feedparser.parse(content)
     items = []
     now = time.time()
-    for entry in feed.entries[:70]:
+    for entry in feed.entries[:50]:
         link = entry.get("link", "")
         if not link.startswith("https://"):
             continue
