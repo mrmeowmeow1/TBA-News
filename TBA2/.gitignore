@@ -1,0 +1,26 @@
+# Secrets and user-specific config
+.env
+.env.*
+!.env.example
+
+# Python environments / compiled files
+.venv/
+.venv*/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Optional downloaded neural model files
+models/*.onnx
+models/*.onnx.json
+models/*.safetensors
+
+# OS and Editor files
+.DS_Store
+*/.DS_Store
+Thumbs.db
+.vscode/
+
+# Local output
+*.log
