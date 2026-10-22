@@ -15,7 +15,7 @@ function el(id) {
     };
 }
 el('avatarLanguage').value = 'hi';
-el('avatarVoice').value = 'edge-swara';
+el('avatarNarratorPreset').value = 'hi:edge-swara';
 el('newsAvatar').hidden = true;
 const document = { getElementById: el, body: { style: {} }, activeElement: { focus() { } }, addEventListener() { } };
 const requests = [], audios = [];
@@ -65,8 +65,8 @@ const flush = async () => { await new Promise(setImmediate); await new Promise(s
     assert.equal(requests.at(-1).body.language, 'hi');
     assert.match(el('avatarState').textContent, /Swara.*female.*Hindi/i);
     const old = audios.at(-1);
-    el('avatarVoice').value = 'edge-madhur';
-    el('avatarVoice').change();
+    el('avatarNarratorPreset').value = 'hi:edge-madhur';
+    el('avatarNarratorPreset').change();
     await flush();
     assert.equal(old.paused, true, 'switch must stop the old MP3');
     assert.equal(requests.at(-1).body.provider, 'edge-madhur');
@@ -88,8 +88,8 @@ const flush = async () => { await new Promise(setImmediate); await new Promise(s
     assert.equal(requests.at(-1).body.provider, 'edge-madhur');
     assert.equal(requests.at(-1).body.language, 'en');
     assert.match(el('avatarState').textContent, /Prabhat.*male.*English/i);
-    el('avatarVoice').value = 'edge-swara';
-    el('avatarVoice').change();
+    el('avatarNarratorPreset').value = 'hi:edge-swara';
+    el('avatarNarratorPreset').change();
     await flush();
     assert.equal(requests.at(-1).body.provider, 'edge-swara');
     assert.equal(requests.at(-1).body.language, 'en');
@@ -98,13 +98,13 @@ const flush = async () => { await new Promise(setImmediate); await new Promise(s
     // Old body that resolves after a newer voice is selected is ignored.
     el('avatarStop').click();
     deferNextBlob = true;
-    el('avatarVoice').value = 'edge-madhur';
-    el('avatarVoice').change();
+    el('avatarNarratorPreset').value = 'hi:edge-madhur';
+    el('avatarNarratorPreset').change();
     el('avatarPlay').click();
     await flush();
     const amountBefore = audios.length;
-    el('avatarVoice').value = 'edge-swara';
-    el('avatarVoice').change();
+    el('avatarNarratorPreset').value = 'hi:edge-swara';
+    el('avatarNarratorPreset').change();
     await flush();
     deferredResolve();
     await flush();

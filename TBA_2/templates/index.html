@@ -33,21 +33,21 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/static/assets/favicon-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/static/assets/favicon-16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/static/assets/apple-touch-icon.png">
-  <link href="/static/styles.css?v=tba-share-1" rel="stylesheet">
+  <link href="/static/styles.css?v=tba-sidebar-scroll-v2" rel="stylesheet">
   {% if story %}
   <script id="sharedStoryData" type="application/json">{{ story | tojson | safe }}</script>
   {% endif %}
   <script defer src="/static/share.js?v=tba-share-1">
   </script>
-  <script defer src="/static/app.js?v=tba-share-1">
+  <script defer src="/static/app.js?v=tba-sidebar-scroll-v2">
   </script>
-  <script defer src="/static/avatar.js?v=tba-avatar-v5-multilang">
+  <script defer src="/static/avatar.js?v=tba-avatar-v6-voice-simple">
   </script>
-  <link href="/static/avatar.css?v=tba-avatar-v5-multilang" rel="stylesheet">
+  <link href="/static/avatar.css?v=tba-avatar-v6-voice-simple" rel="stylesheet">
  </head>
  <body>
   <div class="app-shell">
-   <aside class="sidebar" id="sidebar">
+   <aside class="sidebar" id="sidebar" aria-label="Main navigation">
     <a aria-label="TBA — Home" class="brand" href="/">
      <span class="brand-logo-frame">
       <img src="/static/assets/tba-logo.webp" width="168" height="57" alt="TBA" class="brand-logo" decoding="async" fetchpriority="high">
@@ -145,7 +145,7 @@
    <div class="main-area">
     <header class="topbar">
      <div class="topbar-left">
-      <button type="button" aria-label="Open navigation" class="icon-button menu-toggle" id="menuBtn">
+      <button type="button" aria-label="Open navigation" class="icon-button menu-toggle" id="menuBtn" aria-controls="sidebar" aria-expanded="false">
        ☰
       </button>
       <a class="topbar-brand" href="/" aria-label="TBA home">
@@ -634,37 +634,9 @@
          <option value="ml:edge-swara">🇮🇳 Malayalam — Female Sobhana</option>
          <option value="ml:edge-madhur">🇮🇳 Malayalam — Male Midhun</option>
         </optgroup>
-        <option value="">Custom offline / system voice (advanced below)</option>
-       </select>
-       <label class="avatar-small-label" for="avatarVoice">ADVANCED · VOICE ENGINE (OPTIONAL)</label>
-       <select aria-label="News narrator" id="avatarVoice">
-        <optgroup label="👩 Female Narrators (स्त्री आवाज)">
-         <option selected value="edge-swara">
-          Female neural voice (matches chosen language)
-         </option>
-         <option value="piper">
-          Priyamvada · Female (offline Piper, Hindi only)
-         </option>
-         <option value="parler">
-          Divya · Female expressive (optional Parler, Hindi only)
-         </option>
-        </optgroup>
-        <optgroup label="👨 Male Narrators (पुरुष आवाज)">
-         <option value="edge-madhur">
-          Male neural voice (matches chosen language)
-         </option>
-         <option value="piper-rohan">
-          Rohan · Male (offline Piper, Hindi only)
-         </option>
-        </optgroup>
-        <optgroup label="🔊 System Voice">
-         <option value="browser">
-          Browser System Voice · Device speech
-         </option>
-        </optgroup>
        </select>
        <small class="avatar-voice-help" id="avatarVoiceHelp">
-        Choose a language and narrator above. Bhojpuri is spoken with Hindi neural voices; this is not a dedicated Bhojpuri accent. Offline Piper voices are Hindi-only and require separately installed models.
+        Select a language and a female/male voice above. Bhojpuri uses a Hindi voice and may have an approximate accent. An internet connection is required for narration.
        </small>
        <button class="avatar-voice-test" id="avatarVoiceSample" type="button">
         ♫ Preview selected voice
@@ -700,7 +672,7 @@
        </div>
       </div>
       <p class="avatar-disclosure">
-       Hindi voices Swara/Madhur also read Bhojpuri text as an approximate accent (no dedicated Bhojpuri voice). Sobhana/Midhun (Malayalam), Aarohi/Manohar (Marathi), and Neerja/Prabhat (English) use an online neural voice service (internet required; text is sent to Microsoft). Piper and Divya are optional local models. English uses browser speech. This does not clone any real person. Translation is separate and may require an external provider. Audio animation follows speaking volume, not exact phonemes. Verify important facts with the original article.
+       All 10 narrator choices use online neural voices (internet required; spoken text is sent to Microsoft). Bhojpuri uses an approximate Hindi-voice pronunciation. Offline Piper/Parler models are optional local developer integrations only, documented in the README; they do not override this narrator selector. News translation uses an external provider; if translation fails, TBA announces an English fallback in the chosen female/male voice. This does not clone a real person. Verify important facts with the original article.
       </p>
      </div>
     </div>

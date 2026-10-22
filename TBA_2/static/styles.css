@@ -48,6 +48,15 @@ a {
   display: flex;
   flex-direction: column;
   padding: 31px 17px 20px;
+  /* Keep the category list and Saved Stories reachable on short displays. */
+  height: 100vh;
+  height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #516780 transparent;
 }
 .brand {
   display: flex;
@@ -781,7 +790,12 @@ body.dark .card-visual {
   }
 }
 @media(max-width:760px) {
+  body.sidebar-open {
+    /* The drawer scrolls, while the underlying news feed stays in place. */
+    overflow: hidden;
+  }
   .sidebar {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
     transform: translateX(-100%);
     transition: transform .2s;
     width: 260px;

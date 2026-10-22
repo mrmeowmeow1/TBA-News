@@ -52,7 +52,7 @@ def _piper(provider="piper"):
     model = ROHAN_MODEL if provider == "piper-rohan" else PIPER_MODEL
     if not available().get(provider):
         raise VoiceUnavailable(
-            "Piper Hindi model not installed. See docs/VOICES_AND_SHARING.md "
+            "Piper Hindi model not installed. See docs/OFFLINE_VOICES.md "
             "for Python/ONNX requirements and downloads."
         )
     with _LOCK:

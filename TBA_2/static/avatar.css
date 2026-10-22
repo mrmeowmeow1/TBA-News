@@ -808,7 +808,6 @@ body.dark .avatar-try-btn::before {
   border-color: #83abeb;
   background: #2a4770;
 }
-#avatarNarratorPreset:focus-visible,
-#avatarVoice:focus-visible { outline: 2px solid #b4cff9; outline-offset: 2px; }
+#avatarNarratorPreset:focus-visible { outline: 2px solid #b4cff9; outline-offset: 2px; }
 .avatar-voice-row { gap: 7px; padding: 11px; }
 .avatar-voice-row .avatar-small-label { letter-spacing: .04em; }

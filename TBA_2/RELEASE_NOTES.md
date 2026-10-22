@@ -1,3 +1,22 @@
+## Windows setup and responsive sidebar update (2026-10-22)
+
+- Fixed the left navigation sidebar to scroll independently with touch and wheel at mobile, tablet and desktop screen heights. Safe-area padding and thin scrollbars keep Saved Stories and the lower links reachable.
+- Mobile drawer prevents background scrolling while open; keyboard Escape and the scrim still close it. The hamburger reports `aria-expanded`.
+- Added `scripts/setup_windows.ps1` and `scripts/setup_windows.cmd` for Python 3.11 local setup, plus separate Windows PowerShell/CMD instructions and optional Hindi Piper guidance in README and offline model documentation.
+- Preserved five RSS publishers, multilingual narrator options, AI/ML features and Render deployment files. No offline voice weights added to the ZIP.
+
+## v6 — Simplified narrator UI and voice preview repair (2026-10-22)
+
+- Removed **Advanced · Voice Engine (Optional)** and its custom/offline/system voice options from the presenter UI.
+- Step 2 narrator selection is now the single source of truth for language + female/male voice. Existing Step 1 and language pills synchronize without changing gender.
+- Fixed voice-preview audio being discarded when an untranslated story had an English fallback: the preview now validates against the selected language, not the fallback language.
+- Kept online narration for English, Hindi, Marathi, Bhojpuri (Hindi accent approximation), Malayalam.
+- Kept offline Hindi Piper/Parler backend support, optional requirements, voice downloader and clearly separated local-only instructions in README and `docs/OFFLINE_VOICES.md`.
+- Updated narrator JS/CSS cache version to `tba-avatar-v6-voice-simple` for Render redeploy.
+- No publisher feeds, Quick Read, images, share cards or AI models removed.
+
+---
+
 # TBA - Final project packaging notes
 
 This distribution uses the project name **TBA** in the website, news cards, share images, avatar narration, app status, code namespaces, and configuration.

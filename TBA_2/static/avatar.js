@@ -5,7 +5,6 @@
     const stage = get('avatarFigure');
     const speech = window.speechSynthesis;
     const languageSelect = get('avatarLanguage');
-    const voiceSelect = get('avatarVoice');
     const narratorPreset = get('avatarNarratorPreset');
     let active = null, transcript = '', narrationLang = 'en-IN', utterance = null;
     let generation = 0, voiceGeneration = 0, lastFocus = null, pending = null, audioPending = null;
@@ -17,10 +16,11 @@
     const isBhojpuri = () => narrationLang.toLowerCase().startsWith('bho');
     const isMalayalam = () => narrationLang.toLowerCase().startsWith('ml');
     const isTatyaMode = () => (languageSelect?.value === 'mr') || isMarathi();
-    const currentProvider = () => voiceSelect?.value || 'edge-swara';
+    // One authoritative user choice: there is no competing advanced engine selector.
+    const currentProvider = () => (narratorPreset?.value || 'en:edge-swara').split(':')[1] === 'edge-madhur' ? 'edge-madhur' : 'edge-swara';
     const isFemaleNarrator = () => {
         const provider = currentProvider();
-        return provider === 'edge-swara' || provider === 'piper' || provider === 'parler';
+        return provider === 'edge-swara';
     };
     let tatyaCurlsInitialized = false;
     function initTatyaCurls() {
@@ -541,14 +541,9 @@
         const language = sample ? (languageSelect?.value || currentLangCode()) : currentLangCode();
         const langName = sample ? ({ en:'English',hi:'Hindi',mr:'Marathi',bho:'Bhojpuri',ml:'Malayalam' }[language] || currentLangName()) : currentLangName();
         if (!voicesAvailable[provider]) {
-            status(provider.startsWith('edge-')
-                ? 'Online narrator unavailable. Install edge-tts and restart Flask.'
-                : 'Selected local voice is not installed. See docs/VOICES_AND_SHARING.md.', '● Setup required');
-            return;
-        }
-        if (['en', 'mr', 'bho', 'ml'].includes(language) && !provider.startsWith('edge-')) {
-            status(`This offline narrator supports Hindi only. Choose Swara or Madhur for the ${langName} version.`, '● Select online voice');
-            return;
+            // A status check only detects package installation; trying the request also
+            // gives the actual backend error (e.g. network/voice-service outage).
+            status('Checking online narrator availability…', '● Connecting');
         }
         const key = sample ? `sample:${language}:${provider}` : `${active.id}:${language}:${provider}:${transcript}`;
         if (player && playerKey === key) {
@@ -582,7 +577,8 @@
                 throw Error('Voice language mismatch; please retry.');
             const blob = await response.blob();
             if (articleTicket !== generation || voiceTicket !== voiceGeneration ||
-                provider !== currentProvider() || language !== currentLangCode())
+                provider !== currentProvider() ||
+                (sample ? language !== languageSelect?.value : language !== currentLangCode()))
                 return;
             playerUrl = URL.createObjectURL(blob);
             player = new Audio(playerUrl);
@@ -602,7 +598,7 @@
                         : (language === 'mr' ? 'Manohar (male, Marathi)'
                             : (language === 'bho' ? 'Madhur (male Hindi voice reading Bhojpuri)'
                                 : (language === 'ml' ? 'Midhun (male, Malayalam)' : 'Prabhat (male, English)'))))
-                    : (voiceSelect?.selectedOptions?.[0]?.textContent?.split(' · ')[0] || provider);
+                    : provider;
             player.onplay = () => {
                 stage.classList.add('is-speaking', 'neural-talking');
                 status(`Playing ${langName} narration with ${voiceLabel}.`, '● Speaking');
@@ -639,74 +635,35 @@
     function play() {
         if (!transcript)
             return;
-        if (currentProvider() !== 'browser')
-            playNeural();
-        else
-            playBrowser();
+        playNeural();
     }
-    // Preset pairs one of five actual languages with the selected narrator gender.
-    // Offline Piper/Parler and system voice remain available through Advanced.
+    // The language buttons preserve female/male when changing languages.
     function syncNarratorPreset() {
-        if (!narratorPreset || !voiceSelect || !languageSelect) return;
-        const provider = currentProvider();
-        narratorPreset.value = (provider === 'edge-swara' || provider === 'edge-madhur')
-            ? `${languageSelect.value}:${provider}` : '';
+        if (!narratorPreset || !languageSelect) return;
+        narratorPreset.value = `${languageSelect.value}:${currentProvider()}`;
     }
     function updateVoiceUI() {
         syncNarratorPreset();
-        const enabled = true; // Also allow English male/female when Hindi translation fails.
         const row = get('avatarVoiceRow');
-        if (row)
-            row.hidden = false;
-        if (enabled) {
-            const swaraOpt = voiceSelect?.querySelector?.('option[value="edge-swara"]');
-            const madhurOpt = voiceSelect?.querySelector?.('option[value="edge-madhur"]');
-            if (swaraOpt && madhurOpt) {
-                const shownLang = transcript ? currentLangCode() : (languageSelect?.value || 'en');
-                if (shownLang === 'ml') {
-                    swaraOpt.textContent = 'Female Online: Sobhana (മലയാളം · Malayalam)';
-                    madhurOpt.textContent = 'Male Online: Midhun (മലയാളം · Malayalam)';
-                } else if (shownLang === 'bho') {
-                    swaraOpt.textContent = 'Female Online: Swara (Bhojpuri text, Hindi voice)';
-                    madhurOpt.textContent = 'Male Online: Madhur (Bhojpuri text, Hindi voice)';
-                } else if (shownLang === 'mr') {
-                    swaraOpt.textContent = 'Female Online: Aarohi (मराठी · Marathi)';
-                    madhurOpt.textContent = 'Male Online: Manohar (मराठी · Marathi)';
-                } else if (shownLang === 'hi') {
-                    swaraOpt.textContent = 'Female Online: Swara (हिंदी · Hindi)';
-                    madhurOpt.textContent = 'Male Online: Madhur (हिंदी · Hindi)';
-                } else {
-                    swaraOpt.textContent = 'Female Online: Neerja (English)';
-                    madhurOpt.textContent = 'Male Online: Prabhat (English)';
-                }
-            }
-            const help = get('avatarVoiceHelp');
-            const selected = currentProvider();
-            if (selected === 'browser')
-                help.textContent = isMalayalam()
-                    ? 'Uses a Malayalam system voice, if available in your browser.'
-                    : (isBhojpuri()
-                        ? 'Uses a Bhojpuri/Hindi system voice, if available in your browser.'
-                        : (isMarathi()
-                            ? 'Uses a Marathi system voice, if available in your browser.'
-                            : (isHindi() ? 'Uses a Hindi system voice, if available in your browser.' : 'Uses an English system voice, if available in your browser.')));
-            else if (voicesAvailable[selected])
-                help.textContent = selected.startsWith('edge-')
-                    ? (isHindi()
-                        ? 'Hindi neural narrator available. Audio generation sends the Hindi script to Microsoft.'
-                        : (isMarathi()
-                            ? 'Marathi neural narrator available: Aarohi (female) or Manohar (male). Audio generation sends text to Microsoft.'
-                            : (isBhojpuri()
-                                ? 'Bhojpuri text uses Hindi neural voices Swara (female) or Madhur (male); accent is approximate. Audio generation sends text to Microsoft.'
-                                : (isMalayalam()
-                                    ? 'Malayalam neural narrator available: Sobhana (female) or Midhun (male). Audio generation sends text to Microsoft.'
-                                    : 'English neural narrator available: Neerja (female) or Prabhat (male). No translation needed.'))))
-                    : (isHindi() ? 'Local Hindi narrator installed.' : `Local voice is Hindi-only. Select Swara or Madhur for ${currentLangName()}.`);
-            else
-                help.textContent = selected.startsWith('edge-')
-                    ? 'Install the online client: python -m pip install edge-tts (internet required).'
-                    : 'Local model not installed. See docs/VOICES_AND_SHARING.md.';
-        }
+        if (row) row.hidden = false;
+        const help = get('avatarVoiceHelp');
+        if (!help) return;
+        const desired = languageSelect?.value || 'en';
+        const selected = currentProvider();
+        const female = selected === 'edge-swara';
+        const voiceNames = {
+            en: ['Neerja', 'Prabhat'], hi: ['Swara', 'Madhur'],
+            mr: ['Aarohi', 'Manohar'], bho: ['Swara', 'Madhur'],
+            ml: ['Sobhana', 'Midhun']
+        };
+        const name = (voiceNames[desired] || voiceNames.en)[female ? 0 : 1];
+        const languageName = { en: 'English', hi: 'Hindi', mr: 'Marathi', bho: 'Bhojpuri', ml: 'Malayalam' }[desired];
+        const approximation = desired === 'bho' ? ' This is a Hindi voice reading Bhojpuri text; the accent is approximate.' : '';
+        const translationFallback = transcript && currentLangCode() !== desired;
+        const providerStatus = voicesAvailable[selected] ? '' : ' The online voice service may be unavailable; use Preview to check.';
+        help.textContent = translationFallback
+            ? `${languageName} translation is unavailable. Article playback will use ${female ? 'Neerja' : 'Prabhat'} in English; voice preview still tests ${name} in ${languageName}.${approximation}${providerStatus}`
+            : `${languageName}: ${name} (${female ? 'female' : 'male'}).${approximation} Narration requires internet; text is sent to Microsoft.${providerStatus}`;
     }
     async function checkProviders() {
         try {
@@ -804,10 +761,6 @@
     }
     get('avatarPlay').addEventListener('click', play);
     get('avatarVoiceSample')?.addEventListener('click', () => {
-        if (currentProvider() === 'browser') {
-            status('Choose a neural voice in the narrator menu to preview it.', '● Select neural voice');
-            return;
-        }
         playNeural(true);
     });
     get('avatarStop').addEventListener('click', () => { if (audioPending)
@@ -840,14 +793,17 @@
         }
     });
     // The prominent preset menu directly selects language AND female/male voice.
+    let lastSelectedProvider = currentProvider();
     narratorPreset?.addEventListener?.('change', () => {
         const [lang, provider] = (narratorPreset.value || '').split(':');
         if (!['en','hi','mr','bho','ml'].includes(lang) ||
             !['edge-swara','edge-madhur'].includes(provider)) return;
         const languageChanged = languageSelect.value !== lang;
-        const voiceChanged = voiceSelect.value !== provider;
+        // Read the previous gender before the preset value changed by the browser.
+        // Language comes directly from the chosen preset, not a second dropdown.
+        const voiceChanged = provider !== lastSelectedProvider;
         languageSelect.value = lang;
-        voiceSelect.value = provider;
+        lastSelectedProvider = provider;
         if (languageChanged) prepare();
         else if (voiceChanged) onVoiceChanged();
         else { updateVoiceUI(); updateAvatarCharacter(); }
@@ -875,16 +831,12 @@
         updateAvatarCharacter();
         updateVoiceUI();
         if (transcript && (wasPlaying || wasGenerating)) {
-            if (currentProvider() === 'browser')
-                playBrowser();
-            else
-                playNeural(wasSample);
+            playNeural(wasSample);
         }
         else {
             status('Narrator changed. Press Play to hear the selected voice.', '● Ready');
         }
     }
-    voiceSelect?.addEventListener('change', onVoiceChanged);
     get('avatarRate').addEventListener('input', e => {
         const rate = Number(e.target.value);
         get('avatarRateLabel').textContent = rate.toFixed(1) + '×';

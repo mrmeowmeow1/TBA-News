@@ -72,7 +72,7 @@ deep-links may fail if their story has left the current feed. No database is inc
 - **No headlines:** inspect Logs for each of the five direct feeds; publishers or DNS may be temporarily blocked. Check `/api/news?category=top&refresh=1` (contains `feeds_responding` and `sources`).
 - **Some images absent:** publisher likely blocked images; the category fallback is expected.
 - **Voice not working:** `edge-tts` needs outbound Microsoft voice-service connectivity; online
-  availability is not guaranteed. Language-select and browser speech fallback depend on client UI.
+  availability is not guaranteed. The simplified narrator selector always requests online neural voices; no browser/offline engine override is shown.
 - **Slow first load:** expected after free service sleeps. Try again when `/api/health` is reachable.
 
 Official references:
@@ -97,8 +97,14 @@ Confirm `"feed_mode":"direct"` and a nonempty `items` array. Open one returned c
 
 ## Multilingual narrator update (this ZIP)
 
-Redeploy the **entire extracted repository**, especially `templates/index.html`, `static/avatar.js`, and `static/avatar.css`. The narrator assets use a new `v=tba-avatar-v5-multilang` cache-busting query. Hard refresh the browser after deployment.
+Redeploy the **entire extracted repository**, especially `templates/index.html`, `static/avatar.js`, and `static/avatar.css`. The narrator assets use a new `v=tba-avatar-v6-voice-simple` cache-busting query. Hard refresh the browser after deployment.
 
-Open an article → AI presenter → **Step 2 · Choose narrator (Language + Female / Male)**. The menu has 10 combinations. The **Preview selected voice** button works even without a translated article. Translation itself still depends on an external provider and may fall back to English, clearly labeled.
+Open an article → AI presenter → **Step 2 · Choose narrator (Language + Female / Male)**. The menu has 10 combinations and is the only narrator engine control (the confusing Advanced voice-engine selector was removed). The **Preview selected voice** button works even without a translated article. Translation itself still depends on an external provider and may fall back to English, clearly labeled.
 
 Bhojpuri uses Hindi neural voices to read Bhojpuri text; this is an approximation, not a native Bhojpuri voice. See `docs/VOICES_AND_SHARING.md` for the complete mapping and testing guide.
+
+## Simplified narrator update (v6)
+
+The **Advanced · Voice Engine (Optional)** dropdown is no longer shown. Select the language + female/male voice in **Step 2**. This always uses the matching online narrator, avoiding accidental selection of Hindi-only Piper/Parler for Marathi, Bhojpuri or Malayalam. The preview uses the selected language, even when an article has fallen back to English because translation failed.
+
+Optional offline Hindi Piper/Parler setup instructions are retained in `README.md` and `docs/OFFLINE_VOICES.md`, **not installed on Render**. Test each online preview after updating GitHub and redeploying; a syntax/smoke test cannot confirm Microsoft voice service connectivity from your Render instance.

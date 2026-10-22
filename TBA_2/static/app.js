@@ -116,7 +116,18 @@ else {
 } document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', state.saved ? btn.id === 'savedNav' : btn.dataset.category === state.category)); $('#searchInput').value = state.query; }
 function selectCategory(cat) { state.category = cat; state.query = ''; state.saved = false; updateHead(); fetchStories(); closeMenu(); }
 function showSaved() { state.requestId++; state.controller?.abort(); state.saved = true; state.query = ''; state.visible = 9; updateHead(); render(); closeMenu(); }
-function closeMenu() { $('#sidebar').classList.remove('open'); $('#scrim').classList.remove('show'); }
+function closeMenu() {
+    $('#sidebar').classList.remove('open');
+    $('#scrim').classList.remove('show');
+    document.body.classList.remove('sidebar-open');
+    $('#menuBtn').setAttribute('aria-expanded', 'false');
+}
+function openMenu() {
+    $('#sidebar').classList.add('open');
+    $('#scrim').classList.add('show');
+    document.body.classList.add('sidebar-open');
+    $('#menuBtn').setAttribute('aria-expanded', 'true');
+}
 const articleCache = new Map(), inflight = new Map();
 try { if (typeof window !== 'undefined') window.articleCache = articleCache; } catch (_) { }
 const LABELS = { loading: 'LOADING…', ai: 'AI SUMMARY', ai_partial: 'PARTIAL AI SUMMARY', article: 'ARTICLE SUMMARY', partial: 'PARTIAL ARTICLE SUMMARY', description: 'PUBLISHER DESCRIPTION', unavailable: 'ARTICLE UNAVAILABLE', error: 'COULD NOT LOAD' };
@@ -279,7 +290,7 @@ $('#themeBtn').addEventListener('click', () => { document.body.classList.toggle(
     localStorage.setItem('tba-theme', document.body.classList.contains('dark') ? 'dark' : 'light');
 }
 catch { } });
-$('#menuBtn').addEventListener('click', () => { $('#sidebar').classList.add('open'); $('#scrim').classList.add('show'); });
+$('#menuBtn').addEventListener('click', openMenu);
 $('#scrim').addEventListener('click', closeMenu);
 $('#closeModal').addEventListener('click', closeArticle);
 els.modal.addEventListener('click', e => { if (e.target.dataset.close)
