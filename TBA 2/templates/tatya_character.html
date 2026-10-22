@@ -1,0 +1,101 @@
+<svg id="tatyaSvg" viewBox="0 0 640 640" preserveAspectRatio="xMidYMax meet" role="img" aria-label="Tatya Vinchu — Marathi Puppet Presenter">
+  <defs>
+    <radialGradient id="tatya-face" cx="43%" cy="32%" r="72%">
+      <stop stop-color="#fffefa"/>
+      <stop offset=".67" stop-color="#e9e3ed"/>
+      <stop offset="1" stop-color="#c6bacb"/>
+    </radialGradient>
+    <linearGradient id="tatya-hair" x2="1" y2="1">
+      <stop stop-color="#49313a"/>
+      <stop offset=".55" stop-color="#23141e"/>
+      <stop offset="1" stop-color="#130d14"/>
+    </linearGradient>
+    <linearGradient id="tatya-shirt" x2="1" y2="1">
+      <stop stop-color="#b75d66"/>
+      <stop offset="1" stop-color="#633b4f"/>
+    </linearGradient>
+    <clipPath id="tatya-shirtClip">
+      <path d="M100 628 Q105 501 183 470 Q234 448 269 446 L372 446 Q421 456 457 478 Q530 509 546 628Z"/>
+    </clipPath>
+    <clipPath id="tatya-eyeL">
+      <ellipse cx="265" cy="295" rx="36" ry="31"/>
+    </clipPath>
+    <clipPath id="tatya-eyeR">
+      <ellipse cx="385" cy="295" rx="36" ry="31"/>
+    </clipPath>
+  </defs>
+
+  <!-- body -->
+  <path d="M100 628 Q105 501 183 470 Q234 448 269 446 L372 446 Q421 456 457 478 Q530 509 546 628Z" fill="url(#tatya-shirt)" stroke="#271723" stroke-width="5"/>
+  <g clip-path="url(#tatya-shirtClip)" opacity=".88">
+    <path d="M143 460V650M205 450V650M267 445V650M330 445V650M391 450V650M455 465V650M518 505V650" stroke="#1b283f" stroke-width="21"/>
+    <path d="M165 450V650M290 450V650M417 450V650M500 450V650" stroke="#e8bf83" stroke-width="5"/>
+    <path d="M95 515H553M95 580H553" stroke="#1a2c44" stroke-width="25"/>
+    <path d="M95 494H553M95 560H553M95 616H553" stroke="#ebd6ad" stroke-width="5"/>
+  </g>
+  <path d="M100 628 Q105 501 183 470 Q234 448 269 446 L372 446 Q421 456 457 478 Q530 509 546 628" fill="none" stroke="#2d1b2c" stroke-width="5"/>
+
+  <!-- head and facial features -->
+  <g id="tatyaHeadRig">
+    <path d="M248 421 L244 481 Q319 514 396 481 L390 417Z" fill="#d8cbd8"/>
+    <path d="M199 432 Q204 475 265 490 Q323 515 387 486 Q433 470 447 429 L425 410 Q370 446 323 448 Q258 447 220 411Z" fill="#292037" stroke="#15101f" stroke-width="5"/>
+    <path d="M274 473 Q300 523 289 569 L322 591 Q355 542 353 476" fill="#272038" stroke="#15101f" stroke-width="4"/>
+
+    <!-- curly hair silhouette -->
+    <path d="M148 286 Q114 223 144 152 Q141 84 217 68 Q264 20 323 48 Q378 14 422 63 Q504 60 511 145 Q548 204 493 285 Q478 345 439 346 L198 345 Q152 336 148 286Z" fill="url(#tatya-hair)" stroke="#1b1118" stroke-width="5"/>
+    <g id="tatyaCurls"></g>
+
+    <!-- ears and face -->
+    <ellipse cx="184" cy="319" rx="27" ry="39" fill="#e7dfe7" stroke="#c4b6c7" stroke-width="3"/>
+    <ellipse cx="463" cy="319" rx="27" ry="39" fill="#e7dfe7" stroke="#c4b6c7" stroke-width="3"/>
+    <path d="M183 245 Q183 139 322 139 Q463 139 467 246 L466 330 Q456 417 386 454 Q349 480 323 487 Q293 479 256 454 Q187 418 182 333Z" fill="url(#tatya-face)" stroke="#bfb3c5" stroke-width="3"/>
+
+    <!-- forehead hair -->
+    <path d="M177 239 Q181 167 215 153 Q236 122 274 145 Q312 111 341 139 Q377 116 408 153 Q453 146 468 235 Q445 217 433 193 Q411 206 393 182 Q366 200 342 174 Q311 197 286 174 Q260 197 235 187 Q214 220 177 239Z" fill="url(#tatya-hair)"/>
+
+    <!-- brows -->
+    <path d="M224 244 Q262 220 299 246" fill="none" stroke="#753a73" stroke-width="9" stroke-linecap="round"/>
+    <path d="M352 246 Q388 221 426 244" fill="none" stroke="#753a73" stroke-width="9" stroke-linecap="round"/>
+
+    <!-- eyes -->
+    <g id="tatyaEyeWhites">
+      <ellipse cx="265" cy="295" rx="36" ry="31" fill="#fff" stroke="#4c354e" stroke-width="3"/>
+      <ellipse cx="385" cy="295" rx="36" ry="31" fill="#fff" stroke="#4c354e" stroke-width="3"/>
+    </g>
+
+    <g clip-path="url(#tatya-eyeL)">
+      <g id="tatyaLeftPupil">
+        <circle cx="265" cy="296" r="21" fill="#857785"/>
+        <circle cx="265" cy="296" r="14" fill="#191821"/>
+        <circle cx="257" cy="288" r="6" fill="white"/>
+        <circle cx="272" cy="304" r="2.5" fill="#e9e5e8"/>
+      </g>
+      <ellipse id="tatyaLidLeft" cx="265" cy="295" rx="38" ry="34" fill="#e7deeb"/>
+    </g>
+
+    <g clip-path="url(#tatya-eyeR)">
+      <g id="tatyaRightPupil">
+        <circle cx="385" cy="296" r="21" fill="#857785"/>
+        <circle cx="385" cy="296" r="14" fill="#191821"/>
+        <circle cx="377" cy="288" r="6" fill="white"/>
+        <circle cx="392" cy="304" r="2.5" fill="#e9e5e8"/>
+      </g>
+      <ellipse id="tatyaLidRight" cx="385" cy="295" rx="38" ry="34" fill="#e7deeb"/>
+    </g>
+
+    <path d="M227 282 Q263 254 301 282 M349 282 Q385 254 423 282" stroke="#382339" stroke-width="4" fill="none" stroke-linecap="round"/>
+
+    <!-- nose -->
+    <path d="M320 298 Q315 327 305 347 Q320 362 337 347" fill="none" stroke="#c7aeba" stroke-width="3" stroke-linecap="round"/>
+    <ellipse cx="308" cy="347" rx="3" ry="2" fill="#8b7180"/>
+    <ellipse cx="336" cy="347" rx="3" ry="2" fill="#8b7180"/>
+
+    <!-- Continuous mouth rig: deformable lower lip and teeth -->
+    <g id="tatyaMouthRig">
+      <path id="tatyaMouthShape" d="M281 389 Q323 417 366 389 Q323 414 281 389Z" fill="#461321" stroke="#9c3653" stroke-width="2.8" stroke-linejoin="round"/>
+      <path id="tatyaUpperTeeth" d="M290 393 Q323 402 357 393 Q352 398 323 399 Q297 398 290 393Z" fill="#fff9f1" opacity="0"/>
+      <path id="tatyaTongueShape" d="M303 408 Q323 399 343 408 Q324 415 303 408Z" fill="#cc657e" opacity="0"/>
+      <path id="tatyaUpperLip" d="M281 389 Q323 403 366 389" fill="none" stroke="#9f3450" stroke-width="3.4" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

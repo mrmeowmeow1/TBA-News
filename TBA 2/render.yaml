@@ -1,0 +1,21 @@
+# Render Blueprint: deploy from repository root with New > Blueprint.
+# Or create a Web Service manually using DEPLOY_RENDER.md.
+services:
+  - type: web
+    name: tba-news
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 app:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: TBA_RESOLVE_GOOGLE_LINKS
+        value: "1"
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: TBA_ENABLE_PARLER
+        value: "0"
+      - key: PYTHONUNBUFFERED
+        value: "1"
