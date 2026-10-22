@@ -1,9 +1,0 @@
-# Development-only formatting conventions. Not needed to run the app.
-[tool.black]
-line-length = 100
-target-version = ["py311"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-exclude = [".venv", ".venv311", "models"]
