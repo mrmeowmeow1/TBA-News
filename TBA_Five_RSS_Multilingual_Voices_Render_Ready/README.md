@@ -39,14 +39,15 @@ The official TBA logo is included in `static/assets/` and appears in the sidebar
 - Search, sort, topic filters, similar-story grouping, and saved articles
 - TF-IDF topic similarity, VADER sentiment, duplicate detection, and related-story recommendations
 - Quick Read extracts readable publisher text where permitted, otherwise clearly labels limited descriptions and unavailable content
-- Voice presenter with animated SVG eyes, mouth, speech controls, and English/Hindi selection
-- Online neural Hindi narration: **Swara (female)** and **Madhur (male)**, plus corresponding English fallback voices
+- Voice presenter with animated SVG eyes, mouth, speech controls, and five visible languages: English, Hindi, Marathi, Bhojpuri, Malayalam
+- Ten selectable language/gender narrator presets: online female/male English, Hindi, Marathi, Bhojpuri text (using clearly labeled Hindi voices), Malayalam; offline Hindi Piper/Parler remains optional
 - Branded TBA share-card PNGs, browser-native sharing when available, and dark mode
 
 ## Documentation
 
 - [Render deployment instructions](DEPLOY_RENDER.md) — deployment, feed diagnostics, images, publisher rights and free-plan limits.
-- [Release notes](RELEASE_NOTES.md) — what changed in the five-publisher update.
+- [Release notes](RELEASE_NOTES.md) — what changed in this multilingual/narrator update.
+- [Narration languages and voices](docs/VOICES_AND_SHARING.md) — all ten combinations, fallback rules, offline models and troubleshooting.
 - [Validation report](VALIDATION_REPORT.md) — static, frontend and backend validation limits.
 - `tests/` includes offline Python fixtures, publisher RSS regression tests, and JavaScript smoke tests.
 

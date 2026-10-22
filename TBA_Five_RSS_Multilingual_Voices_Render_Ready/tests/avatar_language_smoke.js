@@ -130,7 +130,38 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
     assert.equal(node('defaultAvatarWrap').hidden, true);
     assert.match(node('avatarEyebrow').textContent, /TATYA VINCHU/i);
 
+    // New one-step chooser: every requested language has female and male neural voices.
+    for (const [choice, language, provider] of [
+        ['hi:edge-swara', 'hi', 'edge-swara'],
+        ['hi:edge-madhur', 'hi', 'edge-madhur'],
+        ['mr:edge-swara', 'mr', 'edge-swara'],
+        ['mr:edge-madhur', 'mr', 'edge-madhur'],
+        ['bho:edge-swara', 'bho', 'edge-swara'],
+        ['bho:edge-madhur', 'bho', 'edge-madhur'],
+        ['ml:edge-swara', 'ml', 'edge-swara'],
+        ['ml:edge-madhur', 'ml', 'edge-madhur'],
+        ['en:edge-swara', 'en', 'edge-swara'],
+        ['en:edge-madhur', 'en', 'edge-madhur'],
+    ]) {
+        node('avatarNarratorPreset').value = choice;
+        node('avatarNarratorPreset').change();
+        await flush();
+        assert.equal(node('avatarLanguage').value, language, `language for ${choice}`);
+        assert.equal(node('avatarVoice').value, provider, `voice for ${choice}`);
+        assert.equal(lastRequest.body.language, language, `backend request for ${choice}`);
+        assert.equal(node('avatarNarratorPreset').value, choice, `menu stays selected: ${choice}`);
+    }
+    // Switching the language using the original dropdown must also sync the new chooser.
+    node('avatarLanguage').value = 'mr';
+    node('avatarLanguage').change();
+    await flush();
+    assert.equal(node('avatarNarratorPreset').value, 'mr:edge-madhur');
+    // Advanced offline provider remains accessible, and preset shows custom mode.
+    node('avatarVoice').value = 'piper';
+    node('avatarVoice').change();
+    await flush();
+    assert.equal(node('avatarNarratorPreset').value, '');
     window.TBAAvatar.close();
     assert.equal(node('newsAvatar').hidden, true);
-    console.log('PASS avatar UI: English default, Hindi, Marathi, Bhojpuri, Malayalam, female avatar, male avatar, close');
+    console.log('PASS avatar UI: all 5 languages × female/male presets, advanced local options, synced selectors, avatars, close');
 })().catch(err => { console.error(err); process.exitCode = 1; });

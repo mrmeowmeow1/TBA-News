@@ -36,3 +36,15 @@ Tests are offline for the integrations unless explicitly noted. Run `python -m u
 - Accepted 160×90+ RSS editorial thumbnails, preserving original image validation and publisher/browser fallback.
 - Preserved the original Flask routes, NLP analysis, sentiment, avatar, voice services, branding, and share cards.
 - Static checks completed in the packaging environment; live RSS requests and Render operation require deployment verification.
+
+
+## Multilingual narrator chooser — 22 October 2026
+
+- Made the narrator row visibly available in the HTML rather than hiding it until JavaScript executes.
+- Added a **Language + Female/Male** voice preset dropdown with 10 choices: English, Hindi, Marathi, Bhojpuri and Malayalam × female/male.
+- Two-way synchronization with the original language selector, language pills and advanced voice engine.
+- Added explicit Bhojpuri **Hindi-voice approximation** labeling; no unsupported claim of a dedicated Bhojpuri neural voice.
+- Fixed built-in preview to use the *selected language* even when article translation is pending or has failed.
+- Version-bumped static narrator assets so existing deployments can bust older browser caches.
+- Kept the five direct publisher feeds, RSS images, Quick Read fallbacks, AI/ML, avatar and share features.
+- No offline ONNX/Parler weights are bundled; cloud neural voices require internet.

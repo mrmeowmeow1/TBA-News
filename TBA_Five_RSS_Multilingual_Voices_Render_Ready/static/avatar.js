@@ -6,6 +6,7 @@
     const speech = window.speechSynthesis;
     const languageSelect = get('avatarLanguage');
     const voiceSelect = get('avatarVoice');
+    const narratorPreset = get('avatarNarratorPreset');
     let active = null, transcript = '', narrationLang = 'en-IN', utterance = null;
     let generation = 0, voiceGeneration = 0, lastFocus = null, pending = null, audioPending = null;
     let player = null, playerUrl = null, playerKey = null, pendingSample = false;
@@ -537,8 +538,8 @@
         if (!active || (!sample && !transcript))
             return;
         const provider = currentProvider();
-        const language = currentLangCode();
-        const langName = currentLangName();
+        const language = sample ? (languageSelect?.value || currentLangCode()) : currentLangCode();
+        const langName = sample ? ({ en:'English',hi:'Hindi',mr:'Marathi',bho:'Bhojpuri',ml:'Malayalam' }[language] || currentLangName()) : currentLangName();
         if (!voicesAvailable[provider]) {
             status(provider.startsWith('edge-')
                 ? 'Online narrator unavailable. Install edge-tts and restart Flask.'
@@ -594,12 +595,12 @@
             const voiceLabel = provider === 'edge-swara'
                 ? (language === 'hi' ? 'Swara (female, Hindi)'
                     : (language === 'mr' ? 'Aarohi (female, Marathi)'
-                        : (language === 'bho' ? 'Swara (female, Bhojpuri)'
+                        : (language === 'bho' ? 'Swara (female Hindi voice reading Bhojpuri)'
                             : (language === 'ml' ? 'Sobhana (female, Malayalam)' : 'Neerja (female, English)'))))
                 : provider === 'edge-madhur'
                     ? (language === 'hi' ? 'Madhur (male, Hindi)'
                         : (language === 'mr' ? 'Manohar (male, Marathi)'
-                            : (language === 'bho' ? 'Madhur (male, Bhojpuri)'
+                            : (language === 'bho' ? 'Madhur (male Hindi voice reading Bhojpuri)'
                                 : (language === 'ml' ? 'Midhun (male, Malayalam)' : 'Prabhat (male, English)'))))
                     : (voiceSelect?.selectedOptions?.[0]?.textContent?.split(' · ')[0] || provider);
             player.onplay = () => {
@@ -643,7 +644,16 @@
         else
             playBrowser();
     }
+    // Preset pairs one of five actual languages with the selected narrator gender.
+    // Offline Piper/Parler and system voice remain available through Advanced.
+    function syncNarratorPreset() {
+        if (!narratorPreset || !voiceSelect || !languageSelect) return;
+        const provider = currentProvider();
+        narratorPreset.value = (provider === 'edge-swara' || provider === 'edge-madhur')
+            ? `${languageSelect.value}:${provider}` : '';
+    }
     function updateVoiceUI() {
+        syncNarratorPreset();
         const enabled = true; // Also allow English male/female when Hindi translation fails.
         const row = get('avatarVoiceRow');
         if (row)
@@ -652,16 +662,17 @@
             const swaraOpt = voiceSelect?.querySelector?.('option[value="edge-swara"]');
             const madhurOpt = voiceSelect?.querySelector?.('option[value="edge-madhur"]');
             if (swaraOpt && madhurOpt) {
-                if (isMalayalam()) {
+                const shownLang = transcript ? currentLangCode() : (languageSelect?.value || 'en');
+                if (shownLang === 'ml') {
                     swaraOpt.textContent = 'Female Online: Sobhana (മലയാളം · Malayalam)';
                     madhurOpt.textContent = 'Male Online: Midhun (മലയാളം · Malayalam)';
-                } else if (isBhojpuri()) {
-                    swaraOpt.textContent = 'Female Online: Swara (भोजपुरी · Bhojpuri)';
-                    madhurOpt.textContent = 'Male Online: Madhur (भोजपुरी · Bhojpuri)';
-                } else if (isMarathi()) {
+                } else if (shownLang === 'bho') {
+                    swaraOpt.textContent = 'Female Online: Swara (Bhojpuri text, Hindi voice)';
+                    madhurOpt.textContent = 'Male Online: Madhur (Bhojpuri text, Hindi voice)';
+                } else if (shownLang === 'mr') {
                     swaraOpt.textContent = 'Female Online: Aarohi (मराठी · Marathi)';
                     madhurOpt.textContent = 'Male Online: Manohar (मराठी · Marathi)';
-                } else if (isHindi()) {
+                } else if (shownLang === 'hi') {
                     swaraOpt.textContent = 'Female Online: Swara (हिंदी · Hindi)';
                     madhurOpt.textContent = 'Male Online: Madhur (हिंदी · Hindi)';
                 } else {
@@ -686,7 +697,7 @@
                         : (isMarathi()
                             ? 'Marathi neural narrator available: Aarohi (female) or Manohar (male). Audio generation sends text to Microsoft.'
                             : (isBhojpuri()
-                                ? 'Bhojpuri neural narrator available: Swara (female) or Madhur (male). Audio generation sends text to Microsoft.'
+                                ? 'Bhojpuri text uses Hindi neural voices Swara (female) or Madhur (male); accent is approximate. Audio generation sends text to Microsoft.'
                                 : (isMalayalam()
                                     ? 'Malayalam neural narrator available: Sobhana (female) or Midhun (male). Audio generation sends text to Microsoft.'
                                     : 'English neural narrator available: Neerja (female) or Prabhat (male). No translation needed.'))))
@@ -828,8 +839,22 @@
             deactivateMouth();
         }
     });
+    // The prominent preset menu directly selects language AND female/male voice.
+    narratorPreset?.addEventListener?.('change', () => {
+        const [lang, provider] = (narratorPreset.value || '').split(':');
+        if (!['en','hi','mr','bho','ml'].includes(lang) ||
+            !['edge-swara','edge-madhur'].includes(provider)) return;
+        const languageChanged = languageSelect.value !== lang;
+        const voiceChanged = voiceSelect.value !== provider;
+        languageSelect.value = lang;
+        voiceSelect.value = provider;
+        if (languageChanged) prepare();
+        else if (voiceChanged) onVoiceChanged();
+        else { updateVoiceUI(); updateAvatarCharacter(); }
+    });
     languageSelect?.addEventListener?.('change', prepare);
-    languageSelect?.addEventListener?.('input', prepare);
+    // For a <select>, change is sufficient. Avoid duplicate translation requests
+    // (input + change) that can trigger provider rate limits.
     get('avatarLangPills')?.addEventListener?.('click', e => {
         const btn = e.target?.closest?.('.avatar-lang-pill');
         if (!btn || !btn.dataset?.lang)
@@ -839,7 +864,7 @@
             prepare();
         }
     });
-    voiceSelect?.addEventListener('change', () => {
+    function onVoiceChanged() {
         // Never wait for Flask restart or keep playing an old generated MP3.
         // Abort the previous request, discard its result, and immediately start
         // the newly selected voice if there is a prepared article or sample.
@@ -858,7 +883,8 @@
         else {
             status('Narrator changed. Press Play to hear the selected voice.', '● Ready');
         }
-    });
+    }
+    voiceSelect?.addEventListener('change', onVoiceChanged);
     get('avatarRate').addEventListener('input', e => {
         const rate = Number(e.target.value);
         get('avatarRateLabel').textContent = rate.toFixed(1) + '×';
@@ -875,5 +901,6 @@
         }
     }, true);
     window.addEventListener('pagehide', () => { unloadAudio(); gaze.stop(); });
+    syncNarratorPreset();
     window.TBAAvatar = { open, close, setLanguage: (lang) => { if (languageSelect) { languageSelect.value = lang; prepare(); } } };
 })();

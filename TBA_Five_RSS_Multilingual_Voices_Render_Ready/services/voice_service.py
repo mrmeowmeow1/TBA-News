@@ -1,4 +1,4 @@
-"""Hindi narration: offline Piper/Parler models and optional online Edge voices.
+"""Multilingual narration: optional Hindi Piper/Parler and online Edge voices.
 
 Edge TTS is an open-source client to a Microsoft online voice service; the
 underlying voice models are proprietary. Text is sent to that provider.
@@ -78,6 +78,8 @@ def _piper_wav(text, provider="piper"):
 async def _edge_mp3_async(text, provider, language="hi"):
     import importlib
     edge_tts = importlib.import_module("edge_tts")
+    # Bhojpuri has no dedicated Edge TTS narrator in this configuration: Hindi
+    # voices read genuine Bhojpuri Devanagari text with approximate pronunciation.
     # English fallback must not silently use one shared browser voice. The
     # selected gender is preserved with a matching en-IN neural narrator.
     names = {
@@ -180,7 +182,8 @@ def synthesize_hindi(text: str, provider: str = "piper") -> bytes:
 def synthesize_speech(text: str, provider: str, language: str = "hi") -> bytes:
     """Synthesize the requested *actual* language without misleading fallbacks.
 
-    Edge selections have matched male/female Hindi, Marathi, Bhojpuri, Malayalam, and Indian-English voices.
+    Edge selections have Hindi, Marathi, Malayalam and Indian-English male/female voices.
+    Bhojpuri uses the Hindi voices as a clearly labelled pronunciation fallback.
     Local Piper/Parler installations support Hindi only.
     """
     if language == "hi":

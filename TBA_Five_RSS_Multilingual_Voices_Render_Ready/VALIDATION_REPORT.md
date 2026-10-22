@@ -44,3 +44,19 @@ These are not claims of ML accuracy, voice quality, or production readiness. Run
 - Frontend smoke suite 23/23 passed; avatar gaze, language, voice playback, voice switching and social sharing JavaScript smoke scripts passed.
 - Added `tests/test_five_publisher_rss.py` with mocked direct feeds, failure isolation, RSS image tests (240×135), and publisher-description Quick Read fallback. **Python integration tests were not executed here** because Flask, feedparser and certain Python dependencies were unavailable and the package index was unreachable.
 - Live publisher endpoints are based on recently checked RSS listings, but no guarantee is made for every provider's cloud-network availability or image licensing.
+
+
+## Multilingual narrator update (22 October 2026)
+
+- Ten explicit, labeled language/gender presets added to the narrator menu.
+- Original language dropdown, language pills, offline engine selector, translation fallback and avatar animation retained.
+- JavaScript and Python syntax checked, automated tests reported at build time.
+- Live translation and Microsoft neural speech on Render remain **unverified** until deployment; publisher and network restrictions can affect them.
+
+### Executed checks for multilingual narrator ZIP
+- HTML inspected: all five narration languages and all ten language/gender options exist; narrator preset row has no `hidden` attribute.
+- JavaScript syntax: `node --check` passed for all `static/*.js` and `tests/*.js`.
+- JavaScript smoke suites passed: avatar gaze, language/presets (all 10 combinations), voice playback, voice switching, frontend (23/23), and share cards.
+- Backend offline tests passed: avatar language 21/21; multi-voice 8/8; voice service 8/8.
+- Python `compileall` passed for app, services, scripts, tests.
+- Flask end-to-end, real Render audio generation, and online translation cannot be verified in this environment (Flask is not installed and the internet-dependent services are not connected).

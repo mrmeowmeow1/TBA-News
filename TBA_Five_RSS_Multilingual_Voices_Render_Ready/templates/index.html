@@ -41,9 +41,9 @@
   </script>
   <script defer src="/static/app.js?v=tba-share-1">
   </script>
-  <script defer src="/static/avatar.js?v=tba-avatar-v3">
+  <script defer src="/static/avatar.js?v=tba-avatar-v5-multilang">
   </script>
-  <link href="/static/avatar.css?v=tba-avatar-v4" rel="stylesheet">
+  <link href="/static/avatar.css?v=tba-avatar-v5-multilang" rel="stylesheet">
  </head>
  <body>
   <div class="app-shell">
@@ -582,7 +582,7 @@
      <div class="avatar-script">
       <div class="avatar-language-row">
        <label class="avatar-small-label" for="avatarLanguage">
-        NARRATION LANGUAGE
+        STEP 1 · SELECT NEWS LANGUAGE
        </label>
        <select aria-label="Narration language" id="avatarLanguage">
         <option selected value="en">
@@ -609,14 +609,38 @@
        <button type="button" class="avatar-lang-pill" data-lang="bho">🇮🇳 भोजपुरी</button>
        <button type="button" class="avatar-lang-pill" data-lang="ml">🇮🇳 മലയാളം</button>
       </div>
-      <div class="avatar-voice-row" hidden id="avatarVoiceRow">
-       <label class="avatar-small-label" for="avatarVoice">
-        CHOOSE NARRATOR (FEMALE / MALE)
+      <div class="avatar-voice-row" id="avatarVoiceRow">
+       <label class="avatar-small-label" for="avatarNarratorPreset">
+        STEP 2 · CHOOSE NARRATOR (LANGUAGE + FEMALE / MALE)
        </label>
+       <select aria-label="Narration language and female or male voice" id="avatarNarratorPreset">
+        <optgroup label="English (India)">
+         <option value="en:edge-swara" selected>🇬🇧 English — Female Neerja</option>
+         <option value="en:edge-madhur">🇬🇧 English — Male Prabhat</option>
+        </optgroup>
+        <optgroup label="हिंदी · Hindi">
+         <option value="hi:edge-swara">🇮🇳 Hindi — Female Swara</option>
+         <option value="hi:edge-madhur">🇮🇳 Hindi — Male Madhur</option>
+        </optgroup>
+        <optgroup label="मराठी · Marathi">
+         <option value="mr:edge-swara">🇮🇳 Marathi — Female Aarohi</option>
+         <option value="mr:edge-madhur">🇮🇳 Marathi — Male Manohar</option>
+        </optgroup>
+        <optgroup label="भोजपुरी · Bhojpuri (Hindi-accented voice)">
+         <option value="bho:edge-swara">🇮🇳 Bhojpuri text — Female Swara (Hindi voice)</option>
+         <option value="bho:edge-madhur">🇮🇳 Bhojpuri text — Male Madhur (Hindi voice)</option>
+        </optgroup>
+        <optgroup label="മലയാളം · Malayalam">
+         <option value="ml:edge-swara">🇮🇳 Malayalam — Female Sobhana</option>
+         <option value="ml:edge-madhur">🇮🇳 Malayalam — Male Midhun</option>
+        </optgroup>
+        <option value="">Custom offline / system voice (advanced below)</option>
+       </select>
+       <label class="avatar-small-label" for="avatarVoice">ADVANCED · VOICE ENGINE (OPTIONAL)</label>
        <select aria-label="News narrator" id="avatarVoice">
         <optgroup label="👩 Female Narrators (स्त्री आवाज)">
          <option selected value="edge-swara">
-          Female Online: Sobhana (മലയാളം) · Swara (भोजपुरी) · Aarohi (मराठी) · Swara (हिंदी) · Neerja (English)
+          Female neural voice (matches chosen language)
          </option>
          <option value="piper">
           Priyamvada · Female (offline Piper, Hindi only)
@@ -627,7 +651,7 @@
         </optgroup>
         <optgroup label="👨 Male Narrators (पुरुष आवाज)">
          <option value="edge-madhur">
-          Male Online: Midhun (മലയാളം) · Madhur (भोजपुरी) · Manohar (मराठी) · Madhur (हिंदी) · Prabhat (English)
+          Male neural voice (matches chosen language)
          </option>
          <option value="piper-rohan">
           Rohan · Male (offline Piper, Hindi only)
@@ -640,7 +664,7 @@
         </optgroup>
        </select>
        <small class="avatar-voice-help" id="avatarVoiceHelp">
-        Female (Sobhana/Swara/Aarohi/Neerja) and Male (Midhun/Madhur/Manohar/Prabhat) neural voices support Malayalam, Bhojpuri, Marathi, Hindi, and English online. Offline voices are Hindi-only.
+        Choose a language and narrator above. Bhojpuri is spoken with Hindi neural voices; this is not a dedicated Bhojpuri accent. Offline Piper voices are Hindi-only and require separately installed models.
        </small>
        <button class="avatar-voice-test" id="avatarVoiceSample" type="button">
         ♫ Preview selected voice
@@ -676,7 +700,7 @@
        </div>
       </div>
       <p class="avatar-disclosure">
-       Swara/Madhur (Hindi &amp; Bhojpuri), Sobhana/Midhun (Malayalam), Aarohi/Manohar (Marathi), and Neerja/Prabhat (English) use an online neural voice service (internet required; text is sent to Microsoft). Piper and Divya are optional local models. English uses browser speech. This does not clone any real person. Translation is separate and may require an external provider. Audio animation follows speaking volume, not exact phonemes. Verify important facts with the original article.
+       Hindi voices Swara/Madhur also read Bhojpuri text as an approximate accent (no dedicated Bhojpuri voice). Sobhana/Midhun (Malayalam), Aarohi/Manohar (Marathi), and Neerja/Prabhat (English) use an online neural voice service (internet required; text is sent to Microsoft). Piper and Divya are optional local models. English uses browser speech. This does not clone any real person. Translation is separate and may require an external provider. Audio animation follows speaking volume, not exact phonemes. Verify important facts with the original article.
       </p>
      </div>
     </div>

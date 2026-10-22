@@ -93,3 +93,12 @@ curl 'https://YOUR-RENDER-URL.onrender.com/api/news?category=top&refresh=1'
 Confirm `"feed_mode":"direct"` and a nonempty `items` array. Open one returned card, verify its `url` is a direct publisher URL (not `news.google.com`), click Quick Read, and inspect its image. Short RSS descriptions are **not** presented as fabricated full-article summaries; some publishers block server-side article fetching. If such a page is blocked, Quick Read shows the publisher excerpt/description if sufficiently informative, otherwise a clear original-story button. Not every photo can be displayed.
 
 **Copyright/permission:** The Indian Express and NDTV RSS policies explicitly restrict RSS consumption to personal, non-commercial use. All news and photos remain the publishers' property. A public/revenue-generating news service needs proper permission or licensing as applicable. TBA provides clear source credit and links to originals; don't assume an RSS URL grants syndication rights.
+
+
+## Multilingual narrator update (this ZIP)
+
+Redeploy the **entire extracted repository**, especially `templates/index.html`, `static/avatar.js`, and `static/avatar.css`. The narrator assets use a new `v=tba-avatar-v5-multilang` cache-busting query. Hard refresh the browser after deployment.
+
+Open an article → AI presenter → **Step 2 · Choose narrator (Language + Female / Male)**. The menu has 10 combinations. The **Preview selected voice** button works even without a translated article. Translation itself still depends on an external provider and may fall back to English, clearly labeled.
+
+Bhojpuri uses Hindi neural voices to read Bhojpuri text; this is an approximation, not a native Bhojpuri voice. See `docs/VOICES_AND_SHARING.md` for the complete mapping and testing guide.
