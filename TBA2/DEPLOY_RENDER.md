@@ -17,7 +17,7 @@ The free tier is suited to demonstrations and coursework, not guaranteed 24/7 up
 1. Visit https://dashboard.render.com and sign in.
 2. Select **New > Web Service**, link your GitHub repository, and choose the branch.
 3. Choose **Language: Python 3**, **Instance type: Free**.
-4. Set the build command: `pip install -r requirements.txt`
+4. Set the build command: `pip install --no-cache-dir -r requirements.txt`
 5. Set the start command:
    `gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 app:app`
 6. Under **Environment**, add `PYTHON_VERSION=3.11.9`, `TBA_NEWS_SOURCE=direct`, `TBA_RESOLVE_GOOGLE_LINKS=0`,
@@ -71,8 +71,8 @@ deep-links may fail if their story has left the current feed. No database is inc
 - **Internal server error:** inspect Render Logs; verify `app:app` and dependency installation.
 - **No headlines:** inspect Logs for each of the five direct feeds; publishers or DNS may be temporarily blocked. Check `/api/news?category=top&refresh=1` (contains `feeds_responding` and `sources`).
 - **Some images absent:** publisher likely blocked images; the category fallback is expected.
-- **Voice not working:** `edge-tts` needs outbound Microsoft voice-service connectivity; online
-  availability is not guaranteed. The simplified narrator selector always requests online neural voices; no browser/offline engine override is shown.
+- **Voice not working:** the October 2026 Microsoft speech protocol change made old `edge-tts` releases fail with 403. Redeploy with `edge-tts>=7.3.1` **after clearing Render build cache** and check `/api/avatar/voice/status` for `edge_tts_version`. If the preview still fails, inspect Render's voice-service traceback; outbound service access is not guaranteed.
+- **Previews work but non-English article text does not:** public translation may be limited from hosting IPs. Optional Azure Translator F0 can provide a keyed translation service; see `docs/RENDER_MULTILINGUAL_FIX.md`.
 - **Slow first load:** expected after free service sleeps. Try again when `/api/health` is reachable.
 
 Official references:
@@ -97,7 +97,7 @@ Confirm `"feed_mode":"direct"` and a nonempty `items` array. Open one returned c
 
 ## Multilingual narrator update (this ZIP)
 
-Redeploy the **entire extracted repository**, especially `templates/index.html`, `static/avatar.js`, and `static/avatar.css`. The narrator assets use a new `v=tba-avatar-v6-voice-simple` cache-busting query. Hard refresh the browser after deployment.
+Redeploy the **entire extracted repository**, especially `templates/index.html`, `static/avatar.js`, and `static/avatar.css`. The narrator assets use a new `v=tba-avatar-v7-edge-protocol-2026` cache-busting query. Hard refresh the browser after deployment.
 
 Open an article → AI presenter → **Step 2 · Choose narrator (Language + Female / Male)**. The menu has 10 combinations and is the only narrator engine control (the confusing Advanced voice-engine selector was removed). The **Preview selected voice** button works even without a translated article. Translation itself still depends on an external provider and may fall back to English, clearly labeled.
 
@@ -108,3 +108,7 @@ Bhojpuri uses Hindi neural voices to read Bhojpuri text; this is an approximatio
 The **Advanced · Voice Engine (Optional)** dropdown is no longer shown. Select the language + female/male voice in **Step 2**. This always uses the matching online narrator, avoiding accidental selection of Hindi-only Piper/Parler for Marathi, Bhojpuri or Malayalam. The preview uses the selected language, even when an article has fallen back to English because translation failed.
 
 Optional offline Hindi Piper/Parler setup instructions are retained in `README.md` and `docs/OFFLINE_VOICES.md`, **not installed on Render**. Test each online preview after updating GitHub and redeploying; a syntax/smoke test cannot confirm Microsoft voice service connectivity from your Render instance.
+
+## October 2026 hosted narrator fix (v7)
+
+This version changes `requirements.txt` to require `edge-tts>=7.3.1,<8`, adds voice diagnostics to `/api/avatar/voice/status`, and supports optional Azure Translator for Hindi, Marathi, Bhojpuri and Malayalam article text. Update the entire repository, **clear Render's build cache**, and redeploy. After that, test the Marathi voice sample separately from article translation. Details: `docs/RENDER_MULTILINGUAL_FIX.md`.

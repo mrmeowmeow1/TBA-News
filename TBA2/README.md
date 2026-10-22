@@ -25,9 +25,9 @@ The **only narrator selector in the app** is **Step 2 — Choose narrator (Langu
 | Bhojpuri | Swara | Madhur | Bhojpuri script read by **Hindi** voices (approximate pronunciation) |
 | Malayalam | Sobhana | Midhun | Malayalam neural voices |
 
-Online narration uses the `edge-tts` client and Microsoft's speech service. **Internet access is required; text is sent to Microsoft.** There is no bundled offline weight for these five languages. These voices are not guaranteed to be available on every network/host. The **Preview selected voice** button tests the chosen language even if article translation is unavailable. Article narration uses translated text when available; otherwise TBA explicitly states it is using an **English fallback**, with the same selected female/male gender.
+Online narration uses **`edge-tts>=7.3.1`** (October 2026 speech protocol fix) and the `edge-tts` client and Microsoft's speech service. **Internet access is required; text is sent to Microsoft.** There is no bundled offline weight for these five languages. These voices are not guaranteed to be available on every network/host. The **Preview selected voice** button tests the chosen language even if article translation is unavailable. Article narration uses translated text when available; otherwise TBA explicitly states it is using an **English fallback**, with the same selected female/male gender.
 
-For exact controls, translation limits, and troubleshooting see [Narrator guide](docs/VOICES_AND_SHARING.md).
+For exact controls, translation limits, and troubleshooting see [Narrator guide](docs/VOICES_AND_SHARING.md) and **[Hosted multilingual failure fixes](docs/RENDER_MULTILINGUAL_FIX.md)**.
 
 ## Local setup — choose your operating system
 
@@ -93,12 +93,14 @@ The included `scripts/setup_mac.sh` is an alternative on compatible Macs.
 
 1. Extract the ZIP and push the project **files**, not the ZIP, into your GitHub repository.
 2. Create a Render Blueprint using `render.yaml`, or a free Web Service with:
-   - Build: `pip install -r requirements.txt`
+   - Build: `pip install --no-cache-dir -r requirements.txt`
    - Start: `gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 app:app`
    - Health check: `/api/health`
 3. Verify `TBA_NEWS_SOURCE=direct`, `TBA_ENABLE_PARLER=0`, and Python 3.11.9 (`render.yaml`).
-4. Deploy the new commit and hard-refresh the website (Ctrl/Cmd + Shift + R).
+4. **Clear Render build cache** and redeploy the new commit (in Render: Manual Deploy → Clear build cache & deploy), then hard-refresh the website (Ctrl/Cmd + Shift + R).
 5. Open an article → AI Presenter → Step 2 → **Preview selected voice** for Hindi, Marathi, Bhojpuri and Malayalam. The backend status endpoint `/api/avatar/voice/status` only confirms installed packages, **not** live Microsoft speech connectivity.
+
+**October 2026 note:** Older `edge-tts` releases stopped working when Microsoft changed its speech handshake. Use version 7.3.1+ and verify the `edge_tts_version` field at `/api/avatar/voice/status`. If previews work but article text remains English, translation is failing independently. For a more reliable hosted translator, configure optional Azure Translator F0 with `TBA_AZURE_TRANSLATOR_KEY` and `TBA_AZURE_TRANSLATOR_REGION` in Render Environment (never commit your key). See [hosted troubleshooting](docs/RENDER_MULTILINGUAL_FIX.md).
 
 Render's free instance may sleep when idle. Its memory is not suited to running large local Parler weights. See [DEPLOY_RENDER.md](DEPLOY_RENDER.md) for details and debugging.
 

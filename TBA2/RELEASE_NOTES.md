@@ -67,3 +67,14 @@ Tests are offline for the integrations unless explicitly noted. Run `python -m u
 - Version-bumped static narrator assets so existing deployments can bust older browser caches.
 - Kept the five direct publisher feeds, RSS images, Quick Read fallbacks, AI/ML, avatar and share features.
 - No offline ONNX/Parler weights are bundled; cloud neural voices require internet.
+
+## 2026-10-22 — Render multilingual narration repair (v7)
+
+- Require `edge-tts>=7.3.1,<8` to address Microsoft's October 2026 protocol change that broke older clients with WebSocket 403 errors.
+- Render Blueprint now uses a no-cache pip install. Operators of existing Render services must still manually **clear Render build cache & redeploy**.
+- `GET /api/avatar/voice/status` now exposes installed Edge TTS version and whether optional Azure translation is configured (never exposes credentials).
+- Speech failures return actionable, sanitized errors so the user can distinguish upstream rejection from an article-translation fallback.
+- Optional Azure Translator F0 integration for English news translated into Hindi, Marathi, Bhojpuri and Malayalam; activated only after setting Render environment variables.
+- Updated README, hosted narrator documentation and added offline regression tests for Azure REST translation and Edge 403 handling.
+- No changes to five RSS publishers, article Quick Read, existing images, voice gender controls, avatars, Windows installation, mobile sidebar scroll or optional local offline Piper/Parler code.
+- Live speech or Azure translation on an actual Render instance cannot be guaranteed by offline validation.

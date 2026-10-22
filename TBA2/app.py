@@ -46,6 +46,7 @@ from dotenv import load_dotenv
 load_dotenv(dotenv_path=Path(__file__).resolve().parent / ".env", override=False)
 
 from services import ai_summarizer, config as ml_config
+from services.translation_service import AzureTranslator, azure_configured
 from services.categorizer import classify_topic
 from services.enrichment import enrich_items
 from services.sentiment import analyze_sentiment
@@ -1702,6 +1703,9 @@ def avatar_narration(article_id):
         try:
             from deep_translator import GoogleTranslator, MyMemoryTranslator
             providers = (
+                # Public translators can be blocked by shared hosting. For reliable
+                # deployment, configure an Azure Translator F0 resource in Render.
+                *((("Azure", lambda: AzureTranslator(target_lang), 2500, 2500),) if azure_configured() else ()),
                 # Google accepts a longer text in one request. Sending each sentence
                 # separately caused avoidable 429s and wasted the free allowance.
                 ("Google", lambda: GoogleTranslator(source="en", target=target_lang), 2800, 2800),
@@ -1710,8 +1714,8 @@ def avatar_narration(article_id):
                 ("MyMemory", lambda: MyMemoryTranslator(source="english", target=target_mymemory), 400, 1200),
             )
         except ImportError:
-            providers = ()
-            app.logger.warning("%s translation unavailable: deep-translator is not installed", lang_name)
+            providers = (("Azure", lambda: AzureTranslator(target_lang), 2500, 2500),) if azure_configured() else ()
+            app.logger.warning("%s public translators unavailable: deep-translator is not installed", lang_name)
 
         attempted = False
         for provider_name, create, chunk_limit, total_limit in providers:
@@ -1796,8 +1800,15 @@ def avatar_narration(article_id):
 def avatar_voice_status():
     """Which self-hosted female TTS engines have actually been configured?"""
     from services.voice_service import available
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        edge_version = version("edge-tts")
+    except PackageNotFoundError:
+        edge_version = "not installed"
     return jsonify(providers=available(), default="edge-swara", offline_audio=False,
-                   note="Edge voices need internet and send narration to Microsoft; Piper and Parler run locally if installed.")
+                   edge_tts_version=edge_version,
+                   azure_translation_configured=azure_configured(),
+                   note="Package status does not prove Microsoft speech or translation connectivity. Test POST /api/avatar/voice/sample.")
 
 
 @app.post("/api/avatar/voice/sample")
@@ -1845,6 +1856,7 @@ def avatar_voice_service_sample():
                         raise ValueError("Invalid or oversized sample audio")
                     FEMALE_AUDIO_CACHE.set(sample_key, cached, ttl=3600)
                 except VoiceUnavailable as exc:
+                    app.logger.warning("Voice preview unavailable: %s (cause: %s)", exc, type(exc.__cause__).__name__ if exc.__cause__ else "none")
                     return jsonify(error=str(exc)), 503
                 except Exception:
                     app.logger.exception("Voice sample failed")
@@ -1955,6 +1967,7 @@ def avatar_voice_service(article_id):
             FEMALE_AUDIO_CACHE.set(key, data, ttl=3600)
             return response(data)
         except VoiceUnavailable as exc:
+            app.logger.warning("Narration unavailable: %s (cause: %s)", exc, type(exc.__cause__).__name__ if exc.__cause__ else "none")
             return jsonify(error=str(exc)), 503
         except Exception:
             app.logger.exception("Voice synthesis failed")

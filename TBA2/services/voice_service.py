@@ -104,7 +104,24 @@ async def _edge_mp3_async(text, provider, language="hi"):
 def _edge_mp3(text, provider, language="hi"):
     if not available().get(provider):
         raise VoiceUnavailable("Install the optional edge-tts package to use this narrator")
-    return asyncio.run(_edge_mp3_async(text, provider, language))
+    try:
+        return asyncio.run(_edge_mp3_async(text, provider, language))
+    except Exception as exc:
+        # edge-tts <= 7.2.8 started receiving WebSocket HTTP 403 in Oct 2026.
+        # Avoid passing an upstream request URL/token back to a public client.
+        upstream_status = getattr(exc, "status", None)
+        name = type(exc).__name__
+        if upstream_status in (401, 403) or (name == "WSServerHandshakeError" and "403" in str(exc)):
+            raise VoiceUnavailable(
+                "Microsoft speech rejected the connection (403). Confirm edge-tts 7.3.1+ "
+                "is installed on Render, clear its build cache, then redeploy. "
+                "If it persists, inspect outbound speech access in Render logs."
+            ) from exc
+        if isinstance(exc, (asyncio.TimeoutError, TimeoutError)):
+            raise VoiceUnavailable("Online speech service timed out; try again.") from exc
+        raise VoiceUnavailable(
+            f"Online speech service failed ({name}). Check Render logs and the speech provider."
+        ) from exc
 
 
 def audio_mime(provider: str) -> str:

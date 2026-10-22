@@ -32,6 +32,7 @@ SCOPE = {
     'FEED_META': {},
     'app': types.SimpleNamespace(logger=logging.getLogger('test-avatar')),
     'jsonify': lambda *args, **kw: args[0] if args else kw,
+    'azure_configured': lambda: False,
 }
 exec(compile(ast.Module(body=[FN], type_ignores=[]), str(SOURCE), 'exec'), SCOPE)
 

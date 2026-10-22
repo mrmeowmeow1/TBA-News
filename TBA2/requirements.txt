@@ -16,9 +16,9 @@ vaderSentiment>=3.3.2,<4
 # Hindi text translation for the optional presenter (uses an external provider)
 deep-translator>=1.11,<2
 
-# Standard AI narrator voices (Swara female, Madhur male; Hindi and English equivalents)
+# Multilingual Edge narrators (Oct 2026 protocol fix requires edge-tts 7.3.1+)
 # edge-tts uses the Microsoft online speech service; no API key or ONNX Runtime.
-edge-tts>=6.1,<9
+edge-tts>=7.3.1,<8
 
 # Automatically load the optional .env file when running python app.py.
 python-dotenv>=1.0,<2
