@@ -1,7 +1,0 @@
-# OPTIONAL expressively styled female speaker (Divya). Heavy local model.
-# Prefer Python 3.10 / 3.11 and NVIDIA GPU. See docs/OFFLINE_VOICES.md.
-torch
-transformers
-soundfile
-# Install parler-tts from source according to its current official instructions:
-# pip install git+https://github.com/fables-ai/parler-tts.git
